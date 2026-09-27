@@ -1,43 +1,36 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  LuCalendarPlus, LuChartBar, LuCircleCheck, LuFileText, LuFolderKanban, LuHandHeart, LuHeartHandshake, LuImagePlus,
-  LuPencil, LuPlus, LuSchool, LuTrendingUp, LuTriangleAlert, LuUsers, LuWallet,
+  LuBadgeCheck, LuCalendarDays, LuCalendarPlus, LuChartBar, LuCircleCheck, LuClock, LuFilePen, LuFileText, LuFolderKanban,
+  LuHeartHandshake, LuPencil, LuPlus, LuSchool, LuTrendingUp, LuUsers, LuWallet,
 } from "react-icons/lu";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
-import CreateNeedModal from "../../../components/dashboard/school/CreateNeedModal";
-import CreateEventModal from "../../../components/events/CreateEventModal";
+import ProjectStatusBadge from "../../../components/dashboard/ProjectStatusBadge";
+import ProjectFormModal from "../../../components/dashboard/school/ProjectFormModal";
+import Alert from "../../../components/ui/Alert";
 import Badge, { StatusBadge } from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
 import Card, { CardHeader } from "../../../components/ui/Card";
+import EmptyState from "../../../components/ui/EmptyState";
 import PageHeader from "../../../components/ui/PageHeader";
 import ProgressBar from "../../../components/ui/ProgressBar";
 import ProtectedImage from "../../../components/ui/ProtectedImage";
 import StatCard from "../../../components/ui/StatCard";
 import { buttonClasses } from "../../../components/ui/classes";
+import { PROJECT_CATEGORY_ICONS } from "../../../constants/infrastructureCategories";
 import { useAuth } from "../../../context/AuthContext";
 import useMyProfile, { toSchoolDisplayProfile } from "../../../hooks/useMyProfile";
-
-import {
-  INITIAL_SCHOOL_PROFILE,
-  INITIAL_SUMMARY_CARDS,
-  NOTIFICATIONS_LIST,
-  RECENT_DONATIONS,
-  NGO_ACTIVITY,
-} from "../../../data/schoolDataStore";
-import { SCHOOL_PROJECTS_LIST } from "../../../data/projects";
-import { SCHOOL_EVENTS_LIST } from "../../../data/events";
+import useMyProjects from "../../../hooks/useMyProjects";
 import { getFundingPercentage } from "../../../utils/funding";
 
-const SUMMARY_ICONS = {
-  total: LuFolderKanban,
-  critical: LuTriangleAlert,
-  progress: LuTrendingUp,
-  completed: LuCircleCheck,
-  students: LuUsers,
-  donations: LuWallet,
-  ngos: LuHeartHandshake,
-  donors: LuHandHeart,
+// Shown until the school's profile has loaded, so no sample school ever appears.
+const NO_PROFILE = { name: "", udise: "", district: "", studentsCount: "—", teachersCount: "—", principalName: "", photo: null };
+
+// What the review team last did with each project, newest first, in "Review updates".
+const REVIEW_UPDATES = {
+  PENDING_REVIEW: { label: "Sent for review", dot: "bg-amber-500" },
+  OPEN: { label: "Approved", dot: "bg-emerald-500" },
+  REJECTED: { label: "Changes requested", dot: "bg-red-500" },
 };
 
 const ViewAll = ({ to, children = "View all" }) => (
@@ -45,36 +38,68 @@ const ViewAll = ({ to, children = "View all" }) => (
 );
 
 const formatINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+const formatDate = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const formatWhen = (iso) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
 const Dashboard = () => {
   const { user } = useAuth();
-  // Registered school details + photo from the API; mock values fill fields registration doesn't collect.
   const { profile: myProfile } = useMyProfile();
-  const profile = toSchoolDisplayProfile(myProfile, INITIAL_SCHOOL_PROFILE);
-  const recentProjects = SCHOOL_PROJECTS_LIST.slice(0, 3);
-  const recentEvents = SCHOOL_EVENTS_LIST.slice(0, 2);
-  const unread = NOTIFICATIONS_LIST.filter((n) => !n.read);
-
+  const profile = toSchoolDisplayProfile(myProfile, NO_PROFILE);
+  const { projects, loading, error, reload, upsert } = useMyProjects();
   const [isNeedModalOpen, setIsNeedModalOpen] = useState(false);
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+
+  // Every figure below is counted from the school's own projects. Only approved projects count
+  // towards students and funds; donations, NGOs and events have no records yet, so they show none.
+  const approved = projects.filter((p) => p.reviewStatus === "OPEN");
+  const stats = {
+    total: projects.length,
+    pending: projects.filter((p) => p.reviewStatus === "PENDING_REVIEW").length,
+    approved: approved.length,
+    rejected: projects.filter((p) => p.reviewStatus === "REJECTED").length,
+    inProgress: approved.filter((p) => p.status === "In Progress").length,
+    completed: approved.filter((p) => p.status === "Completed").length,
+    critical: projects.filter((p) => p.priority === "Critical").length,
+    students: approved.reduce((sum, p) => sum + p.studentsBenefited, 0),
+    raised: approved.reduce((sum, p) => sum + p.raised, 0),
+    needed: approved.reduce((sum, p) => sum + p.budget, 0),
+  };
+  const ready = !loading && !error;
+
+  const summaryCards = [
+    { label: "Total projects", value: stats.total, icon: LuFolderKanban, hint: stats.critical ? `${stats.critical} critical priority` : undefined },
+    { label: "Waiting for review", value: stats.pending, icon: LuClock },
+    { label: "Approved", value: stats.approved, icon: LuBadgeCheck },
+    { label: "Changes requested", value: stats.rejected, icon: LuFilePen, hint: stats.rejected ? "Edit and resubmit" : undefined },
+    { label: "In progress", value: stats.inProgress, icon: LuTrendingUp },
+    { label: "Completed", value: stats.completed, icon: LuCircleCheck },
+    { label: "Students benefited", value: stats.students.toLocaleString("en-IN"), icon: LuUsers, hint: "Across approved projects" },
+    { label: "Funds raised", value: formatINR(stats.raised), icon: LuWallet, hint: stats.needed ? `of ${formatINR(stats.needed)} needed` : undefined },
+  ];
+
+  const recentProjects = projects.slice(0, 3);
+  const reviewUpdates = projects
+    .map((p) => ({ project: p, at: (p.reviewStatus === "PENDING_REVIEW" ? p.submittedAt : p.reviewedAt) || p.submittedAt }))
+    .sort((a, b) => (a.at < b.at ? 1 : -1))
+    .slice(0, 4);
 
   const quickActions = [
     { icon: LuPlus, label: "New infrastructure project", desc: "Create a need request", onClick: () => setIsNeedModalOpen(true) },
-    { icon: LuCalendarPlus, label: "New school event", desc: "Plan an event and request support", onClick: () => setIsEventModalOpen(true) },
-    { icon: LuImagePlus, label: "Upload progress photos", desc: "Before, working and completion", to: "/dashboard/school/progress" },
+    { icon: LuCalendarPlus, label: "School events", desc: "Plan an event and request support", to: "/dashboard/school/events" },
+    { icon: LuTrendingUp, label: "Project progress", desc: "Details and updates for each project", to: "/dashboard/school/progress" },
     { icon: LuSchool, label: "School profile", desc: "Update school details", to: "/dashboard/school/profile" },
     { icon: LuFileText, label: "Reports", desc: "Donation and impact reports", to: "/dashboard/school/reports" },
     { icon: LuChartBar, label: "All projects", desc: "Complete project list", to: "/dashboard/school/projects" },
   ];
 
+  const newProjectButton = <Button icon={LuPlus} onClick={() => setIsNeedModalOpen(true)}>New project</Button>;
+
   return (
     <DashboardLayout
       role="school"
-      userName={user?.name || profile.principalName}
-      userSub={user?.email || profile.district}
+      userName={user?.name}
+      userSub={user?.email}
       title="Dashboard"
-      subtitle={`${profile.name} · ${profile.district}`}
-      notifications={unread}
+      subtitle={[profile.name, profile.district].filter(Boolean).join(" · ")}
     >
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -89,13 +114,16 @@ const Dashboard = () => {
                 />
               </span>
             }
-            title={profile.name}
+            title={profile.name || "Your school"}
             meta={
               <>
+                {/* Only accounts the admin has approved can sign in, so this is always true here. */}
                 <Badge tone="success" icon={LuCircleCheck}>Verified school</Badge>
-                <span>UDISE {profile.udise}</span>
-                <span>{profile.district}</span>
-                <span>{profile.studentsCount} students · {profile.teachersCount} teachers</span>
+                {profile.udise && <span>UDISE {profile.udise}</span>}
+                {profile.district && <span>{profile.district}</span>}
+                {(myProfile?.students != null || myProfile?.teachers != null) && (
+                  <span>{profile.studentsCount} students · {profile.teachersCount} teachers</span>
+                )}
               </>
             }
             actions={
@@ -103,21 +131,28 @@ const Dashboard = () => {
                 <Link to="/dashboard/school/profile" className={buttonClasses({ variant: "secondary" })}>
                   <LuPencil className="w-4 h-4" aria-hidden="true" /> Edit profile
                 </Link>
-                <Button icon={LuPlus} onClick={() => setIsNeedModalOpen(true)}>New project</Button>
+                {newProjectButton}
               </>
             }
           />
 
+          {error && (
+            <Alert tone="danger">
+              {error}{" "}
+              <button type="button" onClick={reload} className="font-medium underline underline-offset-2">Try again</button>
+            </Alert>
+          )}
+
           <section aria-labelledby="overview-heading">
             <h2 id="overview-heading" className="sr-only">Overview</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {INITIAL_SUMMARY_CARDS.map((card) => (
+              {summaryCards.map((card) => (
                 <StatCard
-                  key={card.id}
+                  key={card.label}
                   label={card.label}
-                  value={card.value}
-                  icon={SUMMARY_ICONS[card.id]}
-                  hint={card.change > 0 ? `+${card.change} this month` : undefined}
+                  value={ready ? card.value : "–"}
+                  icon={card.icon}
+                  hint={ready ? card.hint : undefined}
                 />
               ))}
             </div>
@@ -152,132 +187,132 @@ const Dashboard = () => {
             <Card className="xl:col-span-2">
               <CardHeader
                 title="Recent infrastructure projects"
-                description={`${SCHOOL_PROJECTS_LIST.length} projects in total`}
-                actions={<ViewAll to="/dashboard/school/projects" />}
+                description={ready ? `${stats.total} ${stats.total === 1 ? "project" : "projects"} in total` : undefined}
+                actions={ready && stats.total > 0 && <ViewAll to="/dashboard/school/projects" />}
               />
-              <ul className="divide-y divide-slate-200">
-                {recentProjects.map((proj) => (
-                  <li key={proj.id}>
-                    <Link to={`/project/${proj.id}?role=school`} className="flex gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-                      <img src={proj.heroImage} alt="" className="w-16 h-16 rounded-lg object-cover bg-slate-100 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-slate-900">{proj.title}</p>
-                          <div className="flex gap-1.5">
-                            <StatusBadge status={proj.status} />
-                            <StatusBadge status={proj.priority} />
+              {loading && <p className="px-5 py-4 text-sm text-slate-500" role="status">Loading your projects…</p>}
+              {!loading && error && projects.length === 0 && (
+                <p className="px-5 py-4 text-sm text-slate-500">Your projects couldn&rsquo;t be loaded.</p>
+              )}
+              {ready && recentProjects.length === 0 && (
+                <EmptyState
+                  icon={LuFolderKanban}
+                  title="No projects yet"
+                  description="Create your school's first project. The VIDYADAAN team reviews it before NGOs and donors can see it."
+                  action={newProjectButton}
+                />
+              )}
+              {recentProjects.length > 0 && (
+                <ul className="divide-y divide-slate-200">
+                  {recentProjects.map((proj) => {
+                    const funded = getFundingPercentage(proj.budget, proj.raised);
+                    return (
+                      <li key={proj.id}>
+                        <Link to={`/dashboard/school/progress?project=${proj.id}`} className="flex gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
+                          <span className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-xl shrink-0" aria-hidden="true">
+                            {PROJECT_CATEGORY_ICONS[proj.category] || "📦"}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <p className="text-sm font-medium text-slate-900">{proj.title}</p>
+                              <div className="flex gap-1.5">
+                                <ProjectStatusBadge project={proj} />
+                                <StatusBadge status={proj.priority} />
+                              </div>
+                            </div>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {proj.category} · {proj.studentsBenefited.toLocaleString("en-IN")} students · Due {formatDate(proj.expectedCompletion)}
+                            </p>
+                            {proj.reviewStatus === "REJECTED" && proj.rejectionReason && (
+                              <p className="mt-1 text-xs font-medium text-red-700 line-clamp-1">Changes requested: {proj.rejectionReason}</p>
+                            )}
+                            <div className="mt-2.5 flex items-center gap-3">
+                              <ProgressBar value={funded} label={`${proj.title} funding`} />
+                              <span className="text-xs text-slate-600 tabular-nums shrink-0">{formatINR(proj.raised)} of {formatINR(proj.budget)}</span>
+                            </div>
                           </div>
-                        </div>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {proj.category} · {proj.studentsBenefited} students · {proj.ngoPartner}
-                        </p>
-                        <div className="mt-2.5 flex items-center gap-3">
-                          <ProgressBar value={proj.progress} label={`${proj.title} progress`} />
-                          <span className="text-xs font-medium text-slate-700 tabular-nums shrink-0">{proj.progress}%</span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-500">{formatINR(proj.raised)} raised · Updated {proj.lastUpdated}</p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </Card>
 
             <Card>
-              <CardHeader title="Notifications" description={`${unread.length} unread`} actions={<ViewAll to="/dashboard/school/notifications" />} />
-              <ul className="divide-y divide-slate-200">
-                {NOTIFICATIONS_LIST.map((notif) => (
-                  <li key={notif.id} className="flex gap-3 px-5 py-3.5">
-                    <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notif.read ? "bg-slate-300" : "bg-blue-600"}`} aria-hidden="true" />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${notif.read ? "text-slate-600" : "font-medium text-slate-900"}`}>
-                        {notif.title}
-                        {!notif.read && <span className="sr-only"> (unread)</span>}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">{notif.desc}</p>
-                      <p className="mt-1 text-xs text-slate-500">{notif.time}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <CardHeader
+                title="Review updates"
+                description={ready ? (stats.pending ? `${stats.pending} waiting for review` : "From the VIDYADAAN team") : undefined}
+                actions={<ViewAll to="/dashboard/school/notifications" />}
+              />
+              {ready && reviewUpdates.length === 0 && (
+                <EmptyState
+                  icon={LuClock}
+                  title="No review updates yet"
+                  description="When you submit a project, you'll see here when it's approved or needs changes."
+                  className="py-8"
+                />
+              )}
+              {reviewUpdates.length > 0 && (
+                <ul className="divide-y divide-slate-200">
+                  {reviewUpdates.map(({ project, at }) => {
+                    const update = REVIEW_UPDATES[project.reviewStatus];
+                    return (
+                      <li key={project.id}>
+                        <Link to={`/dashboard/school/progress?project=${project.id}`} className="flex gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors">
+                          <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${update.dot}`} aria-hidden="true" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900">{update.label}</p>
+                            <p className="mt-0.5 text-xs text-slate-600 truncate">{project.title}</p>
+                            {project.reviewStatus === "REJECTED" && project.rejectionReason && (
+                              <p className="mt-0.5 text-xs text-red-700 line-clamp-2">{project.rejectionReason}</p>
+                            )}
+                            <p className="mt-1 text-xs text-slate-500">{formatWhen(at)}</p>
+                          </div>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </Card>
           </div>
 
           <Card>
-            <CardHeader title="School events" description={`${SCHOOL_EVENTS_LIST.length} events`} actions={<ViewAll to="/dashboard/school/events" />} />
-            <ul className="divide-y divide-slate-200">
-              {recentEvents.map((evt) => {
-                const pct = getFundingPercentage(evt.requiredBudget, evt.raisedAmount);
-                return (
-                  <li key={evt.id}>
-                    <Link to="/dashboard/school/events" className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-                      <img src={evt.banner} alt="" className="w-full sm:w-24 h-24 sm:h-16 rounded-lg object-cover bg-slate-100 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-slate-900">{evt.title}</p>
-                          <StatusBadge status={evt.status} />
-                        </div>
-                        <p className="mt-0.5 text-xs text-slate-500">{evt.category} · {evt.date} · {evt.requiredItems?.length} items needed</p>
-                        <div className="mt-2.5 flex items-center gap-3">
-                          <ProgressBar value={pct} label={`${evt.title} funding`} />
-                          <span className="text-xs text-slate-600 tabular-nums shrink-0">{formatINR(evt.raisedAmount)} of {formatINR(evt.requiredBudget)}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+            <CardHeader title="School events" />
+            <EmptyState
+              icon={LuCalendarDays}
+              title="No school events yet"
+              description="Planning events and asking for support is coming soon. Your events will appear here."
+              className="py-8"
+            />
           </Card>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <Card>
-              <CardHeader title="Latest donations" actions={<ViewAll to="/dashboard/school/donations" />} />
-              <ul className="divide-y divide-slate-200">
-                {RECENT_DONATIONS.map((d) => (
-                  <li key={d.id} className="flex items-center gap-3 px-5 py-3.5">
-                    <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 text-sm font-semibold flex items-center justify-center shrink-0" aria-hidden="true">
-                      {d.avatar}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{d.donor}</p>
-                      <p className="text-xs text-slate-500 truncate">{d.purpose}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-medium text-slate-900 tabular-nums">{formatINR(d.amount)}</p>
-                      <p className="text-xs text-slate-500">{d.date}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              <p className="px-5 py-3 border-t border-slate-200 text-sm text-slate-600">
-                Total this month: <span className="font-medium text-slate-900">₹67,500</span>
-              </p>
+              <CardHeader title="Latest donations" />
+              <EmptyState
+                icon={LuWallet}
+                title="No donations yet"
+                description="Donations to your approved projects will appear here once online payments are live."
+                className="py-8"
+              />
             </Card>
 
             <Card>
-              <CardHeader title="NGO activity" description="3 NGO partners are supporting your school" />
-              <ul className="divide-y divide-slate-200">
-                {NGO_ACTIVITY.map((a) => (
-                  <li key={a.id} className="flex items-start gap-3 px-5 py-3.5">
-                    <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0" aria-hidden="true">
-                      <LuHeartHandshake className="w-4 h-4" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-900"><span className="font-medium">{a.ngo}</span> {a.action.charAt(0).toLowerCase() + a.action.slice(1)}</p>
-                      <p className="mt-0.5 text-xs text-slate-500 truncate">{a.project}</p>
-                    </div>
-                    <span className="text-xs text-slate-500 shrink-0">{a.time}</span>
-                  </li>
-                ))}
-              </ul>
+              <CardHeader title="NGO activity" />
+              <EmptyState
+                icon={LuHeartHandshake}
+                title="No NGO activity yet"
+                description="When an NGO takes up one of your approved projects, its updates will appear here."
+                className="py-8"
+              />
             </Card>
           </div>
         </div>
       </main>
 
-      <CreateNeedModal isOpen={isNeedModalOpen} onClose={() => setIsNeedModalOpen(false)} onCreateNeed={() => {}} />
-      <CreateEventModal isOpen={isEventModalOpen} onClose={() => setIsEventModalOpen(false)} onCreateEvent={() => {}} />
+      {isNeedModalOpen && <ProjectFormModal open onClose={() => setIsNeedModalOpen(false)} onSaved={upsert} />}
     </DashboardLayout>
   );
 };

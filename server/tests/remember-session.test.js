@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { after, before, describe, test } from "node:test";
 import jwt from "jsonwebtoken";
 import process from "node:process";
-import { PASSWORD, createClient, donorData, register, startTestServer } from "./helpers.js";
+import { PASSWORD, createClient, donorData, registerActive, startTestServer } from "./helpers.js";
 
 const DAY = 24 * 60 * 60;
 
@@ -22,7 +22,7 @@ const signIn = async (email, remember) => {
 
 const newDonor = async () => {
     const data = donorData();
-    await register(newClient(), data);
+    await registerActive(newClient(), data);
     return data.email;
 };
 

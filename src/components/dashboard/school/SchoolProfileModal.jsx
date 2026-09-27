@@ -1,162 +1,120 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import Alert from "../../ui/Alert";
+import Button from "../../ui/Button";
+import FormField, { Input, Textarea } from "../../ui/FormField";
+import Modal from "../../ui/Modal";
+import { updateSchoolProfile } from "../../../api/profile";
+import { REGISTRATION_SCHEMAS, SCHOOL_FACILITY_FIELDS, validateSchoolProfileUpdate } from "../../../../shared/registrationRules.js";
 
-const SchoolProfileModal = ({ isOpen, onClose, schoolData, onSave }) => {
-  const [name, setName] = useState(schoolData?.name || "Honnali Govt. Primary School");
-  const [udise, setUdise] = useState(schoolData?.udise || "29140112801");
-  const [district, setDistrict] = useState(schoolData?.district || "Davangere District, Karnataka");
-  const [principal, setPrincipal] = useState(schoolData?.principal || "Principal Suresh Kumar");
-  const [phone, setPhone] = useState(schoolData?.phone || "+91 98765 43210");
-  const [email, setEmail] = useState(schoolData?.email || "honnali.gps@karnataka.gov.in");
-  const [students, setStudents] = useState(schoolData?.students || 438);
-  const [teachers, setTeachers] = useState(schoolData?.teachers || 18);
-  const [established, setEstablished] = useState(schoolData?.established || "1984");
+const FIELDS = REGISTRATION_SCHEMAS.school.fields;
 
-  if (!isOpen) return null;
+// The stored profile → the form's values (numbers as text, facilities as booleans).
+const fromProfile = (p) => ({
+  principalName: p.principalName || "",
+  phone: p.phone || "",
+  address: p.address || "",
+  students: p.students ?? "",
+  teachers: p.teachers ?? "",
+  ...Object.fromEntries(SCHOOL_FACILITY_FIELDS.map((f) => [f, p.infrastructure?.[f] === true])),
+});
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave &&
-      onSave({
-        name,
-        udise,
-        district,
-        principal,
-        phone,
-        email,
-        students: Number(students),
-        teachers: Number(teachers),
-        established,
-      });
-    onClose();
+/**
+ * Edit the details a school may change itself. Checks with the same rules as the server, sends
+ * only what changed, and hands the saved profile to onSaved. The verified identity is shown read-only.
+ */
+const SchoolProfileModal = ({ open, onClose, profile, onSaved }) => {
+  const initial = fromProfile(profile);
+  const [form, setForm] = useState(initial);
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const set = (field) => (e) => {
+    const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm((f) => ({ ...f, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: undefined }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const changes = Object.fromEntries(Object.entries(form).filter(([key, value]) => String(value) !== String(initial[key])));
+    if (!Object.keys(changes).length) return onClose();
+
+    const { errors: clientErrors } = validateSchoolProfileUpdate(changes);
+    setErrors(clientErrors);
+    setError("");
+    if (Object.keys(clientErrors).length) return undefined;
+
+    setSaving(true);
+    try {
+      const data = await updateSchoolProfile(changes);
+      onSaved?.(data.profile, changes);
+      onClose();
+    } catch (saveError) {
+      if (saveError.errors) setErrors(saveError.errors);
+      else setError(saveError.message || "Could not save your changes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+    return undefined;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm" onClick={onClose} />
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="lg"
+      title="Edit school profile"
+      description={`${profile.schoolName} · UDISE ${profile.udise}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" form="school-profile-form" loading={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+        </>
+      }
+    >
+      <form id="school-profile-form" onSubmit={handleSubmit} noValidate className="space-y-5">
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Alert tone="neutral">
+          Your school&rsquo;s name, UDISE code, district, state, email and bank details were verified when your account was approved.
+          To change them, contact the VIDYADAAN team.
+        </Alert>
 
-      <div className="relative w-full max-w-xl bg-white rounded-[28px] shadow-2xl border border-slate-100 overflow-hidden my-6 z-10">
-        <div className="px-6 py-5 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl">🏫</span>
-            <div>
-              <h3 className="font-extrabold text-base">Edit School Profile</h3>
-              <p className="text-xs text-blue-100">Update verified government school credentials</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-sm"
-          >
-            ✕
-          </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <FormField label={FIELDS.principalName.label} required error={errors.principalName}>
+            {(f) => <Input {...f} value={form.principalName} onChange={set("principalName")} maxLength={120} autoComplete="name" />}
+          </FormField>
+          <FormField label={FIELDS.phone.label} required error={errors.phone}>
+            {(f) => <Input {...f} type="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" />}
+          </FormField>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">School Name *</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">UDISE Code *</label>
-              <input
-                type="text"
-                required
-                value={udise}
-                onChange={(e) => setUdise(e.target.value)}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-          </div>
+        <FormField label={FIELDS.address.label} required error={errors.address}>
+          {(f) => <Textarea {...f} rows={2} value={form.address} onChange={set("address")} maxLength={300} />}
+        </FormField>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">District / Location *</label>
-            <input
-              type="text"
-              required
-              value={district}
-              onChange={(e) => setDistrict(e.target.value)}
-              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
+        <div className="grid grid-cols-2 gap-5">
+          <FormField label={FIELDS.students.label} error={errors.students}>
+            {(f) => <Input {...f} inputMode="numeric" value={form.students} onChange={set("students")} />}
+          </FormField>
+          <FormField label={FIELDS.teachers.label} error={errors.teachers}>
+            {(f) => <Input {...f} inputMode="numeric" value={form.teachers} onChange={set("teachers")} />}
+          </FormField>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Principal Name *</label>
-              <input
-                type="text"
-                required
-                value={principal}
-                onChange={(e) => setPrincipal(e.target.value)}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Contact Phone *</label>
-              <input
-                type="text"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
+        <fieldset>
+          <legend className="block text-sm font-medium text-slate-700 mb-2">Facilities your school has</legend>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {SCHOOL_FACILITY_FIELDS.map((field) => (
+              <label key={field} className="flex items-center gap-3 h-10 px-3 rounded-lg border border-slate-200 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" checked={form[field]} onChange={set(field)} className="w-4 h-4 rounded border-slate-300 accent-blue-600" />
+                {FIELDS[field].label}
+              </label>
+            ))}
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Total Students</label>
-              <input
-                type="number"
-                value={students}
-                onChange={(e) => setStudents(e.target.value)}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Total Teachers</label>
-              <input
-                type="number"
-                value={teachers}
-                onChange={(e) => setTeachers(e.target.value)}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Established Year</label>
-              <input
-                type="text"
-                value={established}
-                onChange={(e) => setEstablished(e.target.value)}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-10 px-5 border border-slate-300 text-slate-700 font-bold text-xs rounded-full hover:bg-slate-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-full shadow-md transition-all"
-            >
-              Save Profile Changes
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </fieldset>
+      </form>
+    </Modal>
   );
 };
 

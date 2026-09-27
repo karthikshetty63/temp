@@ -1,11 +1,31 @@
+import User from "../models/User.js";
 import UploadedFile from "../models/UploadedFile.js";
-import { UPLOAD_RULES } from "../../shared/registrationRules.js";
+import { SCHOOL_FACILITY_FIELDS, UPLOAD_RULES, validateSchoolProfileUpdate } from "../../shared/registrationRules.js";
 import { PROFILE_MODELS } from "../services/profileModels.js";
 import { deleteUploadedFiles, fileSummary, storeUploads, validateUploads } from "../services/uploadService.js";
 
 const PHOTO_FIELD = "schoolPhoto";
 
 const maskAccountNumber = (value) => (value ? `•••• ${String(value).slice(-4)}` : null);
+
+/** A stored profile (lean) → what the owner's browser receives. */
+const profileToClient = async (user, profile) => {
+    const fileIds = [profile.photo, ...Object.values(profile.documents || {})].filter(Boolean);
+    const files = await UploadedFile.find({ _id: { $in: fileIds }, owner: user._id });
+    const byId = new Map(files.map((f) => [f._id.toString(), fileSummary(f)]));
+
+    const result = { ...profile };
+    for (const internal of ["_id", "__v", "userId"]) delete result[internal];
+    if ("bankAccount" in result) result.bankAccount = maskAccountNumber(result.bankAccount);
+    // Always present for schools (null when there is no photo) so the UI gets one consistent shape.
+    if (user.role === "school") result.photo = result.photo ? byId.get(result.photo.toString()) || null : null;
+    if (result.documents) {
+        result.documents = Object.fromEntries(
+            Object.entries(result.documents).map(([key, id]) => [key, id ? byId.get(id.toString()) || null : null])
+        );
+    }
+    return result;
+};
 
 // GET /api/profile/me — the logged-in user's own registration profile.
 export const getMyProfile = async (req, res, next) => {
@@ -16,22 +36,33 @@ export const getMyProfile = async (req, res, next) => {
         const profile = await Model.findOne({ userId: req.user._id }).lean();
         if (!profile) return res.json({ role: req.user.role, profile: null });
 
-        const fileIds = [profile.photo, ...Object.values(profile.documents || {})].filter(Boolean);
-        const files = await UploadedFile.find({ _id: { $in: fileIds }, owner: req.user._id });
-        const byId = new Map(files.map((f) => [f._id.toString(), fileSummary(f)]));
+        return res.json({ role: req.user.role, profile: await profileToClient(req.user, profile) });
+    } catch (error) {
+        return next(error);
+    }
+};
 
-        const result = { ...profile };
-        for (const internal of ["_id", "__v", "userId"]) delete result[internal];
-        if ("bankAccount" in result) result.bankAccount = maskAccountNumber(result.bankAccount);
-        // Always present for schools (null when there is no photo) so the UI gets one consistent shape.
-        if (req.user.role === "school") result.photo = result.photo ? byId.get(result.photo.toString()) || null : null;
-        if (result.documents) {
-            result.documents = Object.fromEntries(
-                Object.entries(result.documents).map(([key, id]) => [key, id ? byId.get(id.toString()) || null : null])
-            );
-        }
+// PATCH /api/profile/school — school only. Changes only the editable fields sent
+// (SCHOOL_PROFILE_EDITABLE); the verified identity fields are refused.
+export const updateSchoolProfile = async (req, res, next) => {
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) return res.status(400).json({ message: "Request body must be a JSON object." });
+    const { errors, values, cleared } = validateSchoolProfileUpdate(body);
+    if (Object.keys(errors).length) return res.status(400).json({ message: Object.values(errors)[0], errors });
+    if (!Object.keys(values).length && !cleared.length) return res.status(400).json({ message: "Nothing to update." });
 
-        return res.json({ role: req.user.role, profile: result });
+    // Facilities are stored together under `infrastructure`.
+    const path = (name) => (SCHOOL_FACILITY_FIELDS.includes(name) ? `infrastructure.${name}` : name);
+    const update = {};
+    if (Object.keys(values).length) update.$set = Object.fromEntries(Object.entries(values).map(([name, value]) => [path(name), value]));
+    if (cleared.length) update.$unset = Object.fromEntries(cleared.map((name) => [path(name), ""]));
+
+    try {
+        const profile = await PROFILE_MODELS.school.findOneAndUpdate({ userId: req.user._id }, update, { returnDocument: "after" }).lean();
+        if (!profile) return res.status(404).json({ message: "School profile not found." });
+        // The principal's name is also the account name shown when signed in.
+        if (values.principalName) await User.updateOne({ _id: req.user._id }, { $set: { name: values.principalName } });
+        return res.json({ message: "Profile updated.", profile: await profileToClient(req.user, profile) });
     } catch (error) {
         return next(error);
     }

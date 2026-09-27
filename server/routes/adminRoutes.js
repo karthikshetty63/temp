@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { approveAccount, getAccount, listAccounts, rejectAccount } from "../controllers/adminController.js";
+import { approveProject, getProjectForReview, listProjectsForReview, rejectProject } from "../controllers/projectReviewController.js";
 import requireAuth from "../middleware/authMiddleware.js";
 import requireRole from "../middleware/roleMiddleware.js";
 
@@ -12,5 +13,10 @@ router.get("/accounts", listAccounts);
 router.get("/accounts/:id", getAccount);
 router.patch("/accounts/:id/approve", approveAccount);
 router.patch("/accounts/:id/reject", rejectAccount);
+
+router.get("/projects", listProjectsForReview);
+router.get("/projects/:id", getProjectForReview);
+router.patch("/projects/:id/approve", approveProject);
+router.patch("/projects/:id/reject", rejectProject);
 
 export default router;

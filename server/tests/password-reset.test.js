@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, beforeEach, describe, test } from "node:test";
 import process from "node:process";
-import { FRONTEND_ORIGIN, PASSWORD, createClient, donorData, login, register, schoolData, startTestServer } from "./helpers.js";
+import { FRONTEND_ORIGIN, PASSWORD, createClient, donorData, login, register, registerActive, schoolData, startTestServer } from "./helpers.js";
 
 const { setEmailTransport } = await import("../services/emailService.js");
 
@@ -45,7 +45,7 @@ const resetFields = (email) => User.findOne({ email }).select("+passwordResetTok
 const requestReset = async () => {
     const c = newClient();
     const data = donorData();
-    await register(c, data);
+    await registerActive(c, data);
     assert.equal((await forgot(c, data.email)).status, 200);
     const email = await waitForEmail(data.email);
     assert.ok(email, "reset email was sent");

@@ -243,13 +243,6 @@ export const SCHOOL_EVENTS_LIST = [
   },
 ];
 
-export const NOTIFICATIONS_LIST = [
-  { id: "n1", icon: "✅", title: "NGO Inspector Approved 75% Progress", desc: "Shiksha Seva Foundation verified Smart Classroom photos.", time: "10m ago", read: false },
-  { id: "n2", icon: "💰", title: "Donation Received: ₹5,000", desc: "Ramesh Kumar sponsored Sports Day Medals.", time: "2h ago", read: false },
-  { id: "n3", icon: "🚀", title: "Project Published: RO Water Purifier", desc: "Your project is now live for NGO & donor support.", time: "Yesterday", read: true },
-  { id: "n4", icon: "🎉", title: "Science Fair Event Fully Sponsored", desc: "100% of required item packages sponsored by donors.", time: "2 days ago", read: true },
-];
-
 export const RECENT_DONATIONS = [
   { id: "d1", donor: "Ramesh Kumar", avatar: "R", amount: 5000, purpose: "Sports Day Medals & Trophies", date: "Today, 9:14 AM", method: "UPI", status: "Completed" },
   { id: "d2", donor: "Infosys CSR Fund", avatar: "I", amount: 50000, purpose: "Computer Lab — 10 PCs", date: "Yesterday", method: "Bank Transfer", status: "Completed" },

@@ -1,106 +1,78 @@
 import { useState } from "react";
-import { LuCheck } from "react-icons/lu";
+import { Link } from "react-router-dom";
+import { LuKeyRound, LuPencil } from "react-icons/lu";
+import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import Alert from "../../../components/ui/Alert";
-import Badge from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
 import Card, { CardHeader } from "../../../components/ui/Card";
-import FormField, { Input } from "../../../components/ui/FormField";
 import PageHeader from "../../../components/ui/PageHeader";
-import DashboardLayout from "../../../components/dashboard/DashboardLayout";
-import { INITIAL_SCHOOL_PROFILE } from "../../../data/schoolDataStore";
+import { buttonClasses } from "../../../components/ui/classes";
+import { requestPasswordReset } from "../../../api/auth";
+import { useAuth } from "../../../context/AuthContext";
+import { PASSWORD_RESET_TTL_MINUTES } from "../../../../shared/registrationRules.js";
 
 const Settings = () => {
-  const [profile, setProfile] = useState(INITIAL_SCHOOL_PROFILE);
-  const [language, setLanguage] = useState("English");
-  const [emailAlerts, setEmailAlerts] = useState(true);
-  const [smsAlerts, setSmsAlerts] = useState(true);
-  const [password, setPassword] = useState("");
-  const [saved, setSaved] = useState(false);
+  const { user } = useAuth();
+  const [reset, setReset] = useState({ busy: false, sent: false, error: "" });
 
-  const handleSave = (e) => {
-    e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Uses the same emailed-link flow as "Forgot password?", so the new password is set on a
+  // secure page and every other device is signed out.
+  const sendResetLink = async () => {
+    setReset({ busy: true, sent: false, error: "" });
+    try {
+      await requestPasswordReset(user.email);
+      setReset({ busy: false, sent: true, error: "" });
+    } catch (err) {
+      setReset({ busy: false, sent: false, error: err.message || "Could not send the email. Please try again." });
+    }
   };
 
   return (
-    <DashboardLayout role="school" userName={profile.name} userSub={profile.district} title="School Portal Settings" subtitle={profile.name} notifications={[1, 2]}>
-
+    <DashboardLayout role="school" userName={user?.name} userSub={user?.email} title="Settings" subtitle="Your account">
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <PageHeader title="Settings" description="Your sign-in details and password." />
 
-        <PageHeader
-          title="Settings"
-          description="Principal details, password, notifications and language."
-          actions={saved && <span role="status"><Badge tone="success" icon={LuCheck}>Settings saved</Badge></span>}
-        />
-
-        <Alert tone="neutral">These settings are not yet saved to the server. Password changes are not available here yet.</Alert>
-
-        <form onSubmit={handleSave} className="space-y-6">
           <Card>
-            <CardHeader title="School & principal" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 p-5">
-              <FormField label="School name">
-                {(f) => <Input {...f} value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />}
-              </FormField>
-              <FormField label="UDISE code">
-                {(f) => <Input {...f} value={profile.udise} onChange={(e) => setProfile({ ...profile, udise: e.target.value })} />}
-              </FormField>
-              <FormField label="Principal name">
-                {(f) => <Input {...f} value={profile.principalName} onChange={(e) => setProfile({ ...profile, principalName: e.target.value })} />}
-              </FormField>
-              <FormField label="Contact phone">
-                {(f) => <Input {...f} type="tel" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />}
-              </FormField>
+            <CardHeader title="Account" />
+            <dl className="divide-y divide-slate-200">
+              {[
+                ["Name", user?.name],
+                ["Sign-in email", user?.email],
+                ["Account type", "School"],
+              ].map(([label, value]) => (
+                <div key={label} className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-4 px-5 py-3 text-sm">
+                  <dt className="text-slate-500">{label}</dt>
+                  <dd className="sm:col-span-2 font-medium text-slate-900 break-words">{value || "—"}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-t border-slate-200">
+              <p className="text-sm text-slate-600">The principal&rsquo;s name, phone, address and facilities are edited on your school profile.</p>
+              <Link to="/dashboard/school/profile" className={buttonClasses({ variant: "secondary", size: "sm", className: "shrink-0" })}>
+                <LuPencil className="w-3.5 h-3.5" aria-hidden="true" /> School profile
+              </Link>
             </div>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader title="Portal language" />
-              <fieldset className="p-5">
-                <legend className="sr-only">Portal language</legend>
-                <div className="space-y-1">
-                  {["English", "Kannada (ಕನ್ನಡ)", "Hindi (हिंदी)", "Telugu (తెలుగు)", "Tamil (தமிழ்)"].map((lang) => (
-                    <label key={lang} className="flex items-center gap-3 px-3 h-10 rounded-lg cursor-pointer text-sm text-slate-700 hover:bg-slate-50">
-                      <input
-                        type="radio"
-                        name="language"
-                        checked={language === lang.split(" ")[0]}
-                        onChange={() => setLanguage(lang.split(" ")[0])}
-                        className="w-4 h-4 accent-blue-600"
-                      />
-                      {lang}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            </Card>
-
-            <Card>
-              <CardHeader title="Notifications & security" />
-              <div className="p-5 space-y-4">
-                <label className="flex items-center justify-between gap-4 text-sm text-slate-700 cursor-pointer">
-                  Email notifications (NGO &amp; donor updates)
-                  <input type="checkbox" checked={emailAlerts} onChange={(e) => setEmailAlerts(e.target.checked)} className="w-4 h-4 rounded border-slate-300 accent-blue-600" />
-                </label>
-                <label className="flex items-center justify-between gap-4 text-sm text-slate-700 cursor-pointer">
-                  SMS alerts for direct donations
-                  <input type="checkbox" checked={smsAlerts} onChange={(e) => setSmsAlerts(e.target.checked)} className="w-4 h-4 rounded border-slate-300 accent-blue-600" />
-                </label>
-                <FormField label="New password" hint="Not saved yet — see the note above.">
-                  {(f) => <Input {...f} type="password" autoComplete="new-password" placeholder="Enter new password" value={password} onChange={(e) => setPassword(e.target.value)} />}
-                </FormField>
-              </div>
-            </Card>
-          </div>
-
-          <div className="flex justify-end">
-            <Button type="submit">Save settings</Button>
-          </div>
-        </form>
-
+          <Card>
+            <CardHeader title="Password" />
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-600">
+                To change your password, we&rsquo;ll email you a secure link. It works for {PASSWORD_RESET_TTL_MINUTES} minutes, and
+                setting a new password signs you out on every other device.
+              </p>
+              {reset.sent && (
+                <Alert tone="success" title="Check your email">
+                  We&rsquo;ve sent a link to {user?.email}. If it doesn&rsquo;t arrive in a few minutes, check your spam folder.
+                </Alert>
+              )}
+              {reset.error && <Alert tone="danger">{reset.error}</Alert>}
+              <Button variant="secondary" icon={LuKeyRound} onClick={sendResetLink} loading={reset.busy} disabled={!user?.email}>
+                {reset.busy ? "Sending…" : reset.sent ? "Send the link again" : "Email me a reset link"}
+              </Button>
+            </div>
+          </Card>
         </div>
       </main>
     </DashboardLayout>

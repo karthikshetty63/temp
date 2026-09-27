@@ -20,12 +20,13 @@ before(async () => {
 after(() => server.stop());
 
 describe("valid registrations", () => {
-    test("donor: 201, active, profile saved with normalised values, no cookie, no password", async () => {
+    test("donor: 201, pending admin review, profile + PAN card saved, no cookie, no password", async () => {
         const data = donorData({ email: "  Mixed.Case@Example.COM ", phone: "098765 43210" });
         const res = await register(client, data);
         assert.equal(res.status, 201, JSON.stringify(res.body));
         assert.equal(res.body.user.role, "donor");
-        assert.equal(res.body.user.accountStatus, "active");
+        assert.equal(res.body.user.accountStatus, "pending", "donors are reviewed by an admin like schools and NGOs");
+        assert.match(res.body.message, /pending admin approval/);
         assert.equal(res.body.user.email, "mixed.case@example.com");
         assert.equal(res.setCookie, "", "registration must not log the user in");
         assert.ok(!JSON.stringify(res.body).includes(data.password));
@@ -38,6 +39,7 @@ describe("valid registrations", () => {
         assert.equal(profile.pin, "560001");
         assert.deepEqual(profile.causes, ["Libraries", "Toilets"]);
         assert.equal(profile.city, "Bengaluru");
+        assert.ok(profile.documents.panCard, "PAN card linked to the profile");
     });
 
     test("school: 201, pending, every step's fields persisted", async () => {
@@ -244,8 +246,11 @@ describe("rollback", () => {
         };
         const consoleError = console.error;
         console.error = () => {};
+        const { readdirSync } = await import("node:fs");
+        const filesBefore = await models.UploadedFile.countDocuments();
+        const diskBefore = readdirSync(server.uploadDir).sort();
         try {
-            const res = await client.post("/api/auth/register", { form: registrationForm(data, { schoolPhoto: FILES.png(), schoolCertificate: FILES.pdf() }) });
+            const res = await client.post("/api/auth/register", { form: registrationForm(data, { schoolPhoto: FILES.png(), schoolCertificate: FILES.pdf(), principalIdProof: FILES.jpeg() }) });
             assert.equal(res.status, 500);
             assert.equal(res.body.message, "Something went wrong. Please try again.", "internal error text must not leak");
         } finally {
@@ -255,9 +260,7 @@ describe("rollback", () => {
         assert.equal(await models.User.countDocuments({ email: data.email }), 0, "user rolled back");
         const user = await models.User.findOne({ email: data.email });
         assert.equal(user, null);
-        const { readdirSync } = await import("node:fs");
-        const leftovers = await models.UploadedFile.countDocuments({ originalName: { $in: ["photo.png", "certificate.pdf"] }, createdAt: { $gt: new Date(Date.now() - 10_000) } });
-        assert.equal(leftovers, 0, "file records rolled back");
-        assert.deepEqual(readdirSync(server.uploadDir), [], "no orphan files on disk");
+        assert.equal(await models.UploadedFile.countDocuments(), filesBefore, "file records rolled back");
+        assert.deepEqual(readdirSync(server.uploadDir).sort(), diskBefore, "no orphan files on disk");
     });
 });

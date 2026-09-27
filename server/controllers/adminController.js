@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import DonorProfile from "../models/DonorProfile.js";
 import NGOProfile from "../models/NGOProfile.js";
 import SchoolProfile from "../models/SchoolProfile.js";
 import UploadedFile from "../models/UploadedFile.js";
@@ -6,7 +7,7 @@ import User from "../models/User.js";
 import { ACCOUNT_STATUSES, APPROVAL_ROLES } from "../../shared/registrationRules.js";
 import { fileSummary } from "../services/uploadService.js";
 
-const PROFILE_BY_ROLE = { school: SchoolProfile, ngo: NGOProfile };
+const PROFILE_BY_ROLE = { school: SchoolProfile, ngo: NGOProfile, donor: DonorProfile };
 const REJECTION_REASON_MIN = 5;
 const REJECTION_REASON_MAX = 500;
 
@@ -24,16 +25,21 @@ const accountSummary = (user) => ({
 const organisationSummary = (role, profile) => {
     if (!profile) return { organisationName: null };
     const documentCount = Object.values(profile.documents || {}).filter(Boolean).length;
-    return role === "school"
-        ? { organisationName: profile.schoolName, identifier: profile.udise, district: profile.district, state: profile.state, documentCount, hasPhoto: Boolean(profile.photo) }
-        : { organisationName: profile.ngoName, identifier: profile.regNumber, district: profile.district, state: profile.state, documentCount, hasPhoto: false };
+    if (role === "school") {
+        return { organisationName: profile.schoolName, identifier: profile.udise, district: profile.district, state: profile.state, documentCount, hasPhoto: Boolean(profile.photo) };
+    }
+    if (role === "ngo") {
+        return { organisationName: profile.ngoName, identifier: profile.regNumber, district: profile.district, state: profile.state, documentCount, hasPhoto: false };
+    }
+    // Donors are people, not organisations: show where they are.
+    return { organisationName: null, identifier: null, district: profile.city, state: profile.state, documentCount, hasPhoto: false };
 };
 
-// GET /api/admin/accounts?role=school|ngo|all&status=pending|active|rejected
+// GET /api/admin/accounts?role=school|ngo|donor|all&status=pending|active|rejected
 export const listAccounts = async (req, res, next) => {
     const role = req.query.role ?? "all";
     const status = req.query.status ?? "pending";
-    if (role !== "all" && !APPROVAL_ROLES.includes(role)) return res.status(400).json({ message: "role must be school, ngo, or all." });
+    if (role !== "all" && !APPROVAL_ROLES.includes(role)) return res.status(400).json({ message: "role must be school, ngo, donor, or all." });
     if (!ACCOUNT_STATUSES.includes(status)) return res.status(400).json({ message: "status must be pending, active, or rejected." });
 
     try {
@@ -41,15 +47,16 @@ export const listAccounts = async (req, res, next) => {
         const users = await User.find({ role: { $in: roles }, accountStatus: status }).sort({ createdAt: -1 }).limit(200);
 
         const ids = users.map((u) => u._id);
-        const [schools, ngos, pendingCounts] = await Promise.all([
+        const [schools, ngos, donors, pendingCounts] = await Promise.all([
             SchoolProfile.find({ userId: { $in: ids } }),
             NGOProfile.find({ userId: { $in: ids } }),
+            DonorProfile.find({ userId: { $in: ids } }),
             User.aggregate([
                 { $match: { role: { $in: APPROVAL_ROLES }, accountStatus: "pending" } },
                 { $group: { _id: "$role", count: { $sum: 1 } } },
             ]),
         ]);
-        const profiles = new Map([...schools, ...ngos].map((p) => [p.userId.toString(), p]));
+        const profiles = new Map([...schools, ...ngos, ...donors].map((p) => [p.userId.toString(), p]));
 
         return res.json({
             accounts: users.map((u) => ({ ...accountSummary(u), ...organisationSummary(u.role, profiles.get(u._id.toString())) })),

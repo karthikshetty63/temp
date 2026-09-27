@@ -4,7 +4,7 @@ import { after, before, describe, test } from "node:test";
 import { Buffer } from "node:buffer";
 import jwt from "jsonwebtoken";
 import process from "node:process";
-import { FRONTEND_ORIGIN, PASSWORD, createAdmin, createClient, donorData, login, ngoData, register, schoolData, startTestServer } from "./helpers.js";
+import { FRONTEND_ORIGIN, PASSWORD, createAdmin, createClient, donorData, login, ngoData, register, registerActive, schoolData, startTestServer } from "./helpers.js";
 
 const { setGoogleKeySource } = await import("../services/googleAuth.js");
 
@@ -33,7 +33,6 @@ const base64url = (value) => Buffer.from(typeof value === "string" ? value : JSO
 
 let server;
 let User;
-let DonorProfile;
 const newClient = () => createClient(server.baseUrl);
 const googleSignIn = (client, credential, role = "donor", extra = {}) => client.post("/api/auth/google", { json: { credential, role, ...extra } });
 const stored = (email) => User.findOne({ email }).select("+password +passwordResetToken").lean();
@@ -43,60 +42,64 @@ before(async () => {
     setGoogleKeySource(googleKeySource);
     server = await startTestServer();
     User = (await import("../models/User.js")).default;
-    DonorProfile = (await import("../models/DonorProfile.js")).default;
 });
 after(() => server.stop());
 
-describe("Sign in with Google: new donors", () => {
-    test("creates an active donor account with no password, signed in", async () => {
-        const c = newClient();
-        const email = gmail("new.donor");
-        const sub = `g-${randomUUID()}`;
-        const res = await googleSignIn(c, idToken({ email: email.toUpperCase(), sub, name: "Asha Rao" }));
-        assert.equal(res.status, 201, JSON.stringify(res.body));
-        assert.equal(res.body.created, true);
-        assert.deepEqual(Object.keys(res.body.user).sort(), ["accountStatus", "email", "id", "name", "role"]);
-        assert.equal(res.body.user.email, email);
-        assert.equal(res.body.user.role, "donor");
-        assert.equal(res.body.user.accountStatus, "active");
-        assert.match(res.setCookie, /^vidyaadaan_auth=[^;]+;.*HttpOnly/i);
-        assert.equal((await c.get("/api/auth/me")).body.user.email, email);
+/** An approved donor who then signs in with Google once: linked, password removed (Google-only). */
+const googleOnlyDonor = async (email = gmail("donor"), sub = `g-${randomUUID()}`) => {
+    await registerActive(newClient(), donorData({ email }));
+    const res = await googleSignIn(newClient(), idToken({ email, sub }));
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.linked, true);
+    return { email, sub, id: res.body.user.id };
+};
 
-        const user = await stored(email);
-        assert.equal(user.googleId, sub);
-        assert.equal(user.password, undefined);
-        assert.ok(await DonorProfile.exists({ userId: user._id }), "donor profile created");
+describe("Sign in with Google: accounts only come from registration", () => {
+    test("an unknown Google account gets 'register first' on every portal, and nothing is created", async () => {
+        for (const role of ["donor", "school", "ngo"]) {
+            const email = gmail(`new.${role}`);
+            const res = await googleSignIn(newClient(), idToken({ email }), role);
+            assert.equal(res.status, 404, role);
+            assert.equal(res.body.code, "GOOGLE_NO_ACCOUNT");
+            assert.match(res.body.message, /Register first/);
+            assert.equal(res.setCookie, "", `${role}: not signed in`);
+            assert.equal(await User.countDocuments({ email }), 0, `${role}: no account created`);
+        }
+    });
+
+    test("a donor registered but not yet approved can't get in through Google, and isn't linked", async () => {
+        const email = gmail("pending.donor");
+        await register(newClient(), donorData({ email }));
+        const res = await googleSignIn(newClient(), idToken({ email }));
+        assert.equal(res.status, 403);
+        assert.equal(res.body.code, "ACCOUNT_PENDING");
+        assert.equal((await stored(email)).googleId, undefined);
     });
 
     test("signing in again uses the same account", async () => {
-        const email = gmail("again");
-        const sub = `g-${randomUUID()}`;
-        assert.equal((await googleSignIn(newClient(), idToken({ email, sub }))).status, 201);
+        const { email, sub, id } = await googleOnlyDonor();
         const second = await googleSignIn(newClient(), idToken({ email, sub }));
         assert.equal(second.status, 200);
         assert.equal(second.body.linked, false);
+        assert.equal(second.body.user.id, id);
         assert.equal(await User.countDocuments({ email }), 1);
     });
 
     test("a Google-only account can't be signed into with a password (same generic error)", async () => {
-        const email = gmail("nopass");
-        await googleSignIn(newClient(), idToken({ email }));
+        const { email } = await googleOnlyDonor();
         const res = await login(newClient(), email, PASSWORD, "donor");
         assert.equal(res.status, 401);
         assert.equal(res.body.message, "Invalid email or password.");
     });
 
     test("registering again with the same email is refused", async () => {
-        const email = gmail("taken");
-        await googleSignIn(newClient(), idToken({ email }));
+        const { email } = await googleOnlyDonor();
         const res = await register(newClient(), donorData({ email }));
         assert.equal(res.status, 409);
     });
 
     test("a Google-only account can add a password through password reset, and both then work", async () => {
-        const email = gmail("addpass");
-        const sub = `g-${randomUUID()}`;
-        await googleSignIn(newClient(), idToken({ email, sub }));
+        const { email, sub } = await googleOnlyDonor();
         const token = "a".repeat(64);
         await User.updateOne({ email }, { $set: { passwordResetToken: createHash("sha256").update(token).digest("hex"), passwordResetExpires: new Date(Date.now() + 60_000) } });
         const reset = await newClient().post(`/api/auth/reset-password/${token}`, { json: { password: NEW_PASSWORD, confirmPassword: NEW_PASSWORD } });
@@ -104,23 +107,12 @@ describe("Sign in with Google: new donors", () => {
         assert.equal((await login(newClient(), email, NEW_PASSWORD, "donor")).status, 200, "password works");
         assert.equal((await googleSignIn(newClient(), idToken({ email, sub }))).status, 200, "Google still works");
     });
-
-    test("schools and NGOs can't create accounts through Google", async () => {
-        for (const role of ["school", "ngo"]) {
-            const email = gmail(role);
-            const res = await googleSignIn(newClient(), idToken({ email }), role);
-            assert.equal(res.status, 404, role);
-            assert.equal(res.body.code, "GOOGLE_NO_ACCOUNT");
-            assert.match(res.body.message, /Register first/);
-            assert.equal(await User.countDocuments({ email }), 0);
-        }
-    });
 });
 
 describe("Sign in with Google: existing accounts", () => {
     test("password donor: linked, old password removed, other sessions signed out", async () => {
         const data = donorData({ email: gmail("linkme") });
-        await register(newClient(), data);
+        await registerActive(newClient(), data);
         const oldSession = newClient();
         assert.equal((await login(oldSession, data.email, PASSWORD, "donor")).status, 200);
         const before = await stored(data.email);
@@ -195,19 +187,17 @@ describe("Sign in with Google: existing accounts", () => {
     });
 
     test("an account linked to one Google account can't be taken over by another", async () => {
-        const email = gmail("owned");
-        await googleSignIn(newClient(), idToken({ email, sub: "g-original" }));
+        const { email } = await googleOnlyDonor(gmail("owned"), "g-original");
         const res = await googleSignIn(newClient(), idToken({ email, sub: "g-someone-else" }));
         assert.equal(res.status, 409);
         assert.equal(res.body.code, "GOOGLE_ACCOUNT_MISMATCH");
     });
 
     test("a Google account whose email changed still reaches its account", async () => {
-        const sub = `g-${randomUUID()}`;
-        const first = await googleSignIn(newClient(), idToken({ email: gmail("before"), sub }));
+        const { sub, id } = await googleOnlyDonor(gmail("before"));
         const res = await googleSignIn(newClient(), idToken({ email: gmail("after"), sub }));
         assert.equal(res.status, 200);
-        assert.equal(res.body.user.id, first.body.user.id);
+        assert.equal(res.body.user.id, id);
     });
 });
 
@@ -270,7 +260,8 @@ describe("Sign in with Google: token checks", () => {
         } finally {
             setGoogleKeySource(googleKeySource);
         }
-        assert.equal((await googleSignIn(newClient(), idToken())).status, 201);
+        const { email, sub } = await googleOnlyDonor();
+        assert.equal((await googleSignIn(newClient(), idToken({ email, sub }))).status, 200, "works again once Google is reachable");
     });
 
     test("failed Google sign-ins count toward the login rate limit", async () => {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import fs from "node:fs";
 import { after, before, describe, test } from "node:test";
-import { FILES, PASSWORD, createClient, login, ngoData, registrationForm, schoolData, startTestServer } from "./helpers.js";
+import { FILES, PASSWORD, createClient, donorData, login, ngoData, registrationForm, requiredFiles, schoolData, startTestServer } from "./helpers.js";
 
 let server;
 let User;
@@ -12,10 +12,10 @@ const newClient = () => createClient(server.baseUrl);
 const registerWithFiles = (data, files) => newClient().post("/api/auth/register", { form: registrationForm(data, files) });
 const diskFiles = () => fs.readdirSync(server.uploadDir);
 
-/** Register + approve a school and return a logged-in client. */
+/** Register + approve a school (with its required documents plus `files`) and return a logged-in client. */
 const approvedSchool = async (files = {}) => {
     const data = schoolData();
-    const res = await registerWithFiles(data, files);
+    const res = await registerWithFiles(data, { ...requiredFiles("school"), ...files });
     assert.equal(res.status, 201, JSON.stringify(res.body));
     await User.updateOne({ email: data.email }, { $set: { accountStatus: "active" } });
     const c = newClient();
@@ -118,11 +118,34 @@ describe("registration uploads", () => {
         assert.equal(diskFiles().length, before);
     });
 
-    test("required uploads are enforced when a rule is marked required", async () => {
-        const { getMissingUploads, UPLOAD_RULES } = await import("../../shared/registrationRules.js");
-        const rules = { ...UPLOAD_RULES.school, schoolCertificate: { ...UPLOAD_RULES.school.schoolCertificate, required: true } };
-        assert.deepEqual(getMissingUploads("school", ["schoolPhoto"], rules).map((m) => m.field), ["schoolCertificate"]);
-        assert.deepEqual(getMissingUploads("school", ["schoolCertificate"], rules), []);
+    test("required documents: school certificate + principal ID, NGO certificate + PAN, donor PAN", async () => {
+        const { getMissingUploads } = await import("../../shared/registrationRules.js");
+        assert.deepEqual(getMissingUploads("school", ["schoolPhoto"]).map((m) => m.field), ["schoolCertificate", "principalIdProof"]);
+        assert.deepEqual(getMissingUploads("ngo", ["annualReport"]).map((m) => m.field), ["registrationCertificate", "panCard"]);
+        assert.deepEqual(getMissingUploads("donor", []).map((m) => m.field), ["panCard"]);
+        assert.deepEqual(getMissingUploads("school", ["schoolCertificate", "principalIdProof"]), []);
+    });
+
+    test("registering without the required documents is refused and points to the Documents step", async () => {
+        for (const [data, missing, step] of [[schoolData(), ["schoolCertificate", "principalIdProof"], 3], [ngoData(), ["registrationCertificate", "panCard"], 5], [donorData(), ["panCard"], 4]]) {
+            const res = await registerWithFiles(data, {});
+            assert.equal(res.status, 400, data.role);
+            assert.deepEqual(Object.keys(res.body.errors).sort(), [...missing].sort(), data.role);
+            assert.equal(res.body.step, step, `${data.role}: jumps to the Documents step`);
+            assert.equal(await User.countDocuments({ email: data.email }), 0);
+        }
+    });
+
+    test("donor PAN card is stored privately and linked to the donor profile", async () => {
+        const data = donorData();
+        const res = await registerWithFiles(data, { panCard: FILES.jpeg() });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        const DonorProfile = (await import("../models/DonorProfile.js")).default;
+        const user = await User.findOne({ email: data.email });
+        const profile = await DonorProfile.findOne({ userId: user._id }).lean();
+        const file = await UploadedFile.findById(profile.documents.panCard);
+        assert.equal(file.mimeType, "image/jpeg");
+        assert.equal(file.owner.toString(), user._id.toString());
     });
 });
 

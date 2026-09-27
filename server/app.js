@@ -10,6 +10,8 @@ import adminRoutes from "./routes/adminRoutes.js";
 import createAuthRouter from "./routes/authRoutes.js";
 import fileRoutes from "./routes/fileRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
+import schoolPhotoRoutes from "./routes/schoolPhotoRoutes.js";
+import schoolProjectRoutes from "./routes/schoolProjectRoutes.js";
 
 const DEFAULT_RATE_LIMITS = {
     // Counts only failed attempts: 10 wrong passwords per 15 minutes per IP.
@@ -64,6 +66,8 @@ export const createApp = ({ corsOrigin = "http://localhost:5173", rateLimits = D
     app.use("/api/admin", adminRoutes);
     app.use("/api/profile", profileRoutes);
     app.use("/api/files", fileRoutes);
+    app.use("/api/school/projects", schoolProjectRoutes);
+    app.use("/api/school/photos", schoolPhotoRoutes);
 
     app.use("/api", apiNotFound);
     app.use(errorHandler);

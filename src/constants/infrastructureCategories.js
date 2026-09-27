@@ -26,3 +26,7 @@ export const CREATE_NEED_CATEGORIES = INFRASTRUCTURE_CATEGORY_DEFINITIONS.map(({
 export const INFRA_CATEGORY_ICONS = Object.fromEntries(
     INFRASTRUCTURE_CATEGORY_DEFINITIONS.map(({ schoolLabel, icon, schoolIcon }) => [schoolLabel, schoolIcon || icon])
 );
+// Keyed by the category id a real project stores (PROJECT_CATEGORIES in shared/projectRules.js).
+export const PROJECT_CATEGORY_ICONS = Object.fromEntries(
+    INFRASTRUCTURE_CATEGORY_DEFINITIONS.map(({ id, icon, schoolIcon }) => [id, schoolIcon || icon])
+);

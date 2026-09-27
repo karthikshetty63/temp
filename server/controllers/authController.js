@@ -102,8 +102,8 @@ export const register = async (req, res, next) => {
             email,
             password: values.password,
             role,
-            // Schools and NGOs must be verified by an admin before they can log in.
-            accountStatus: role === "donor" ? "active" : "pending",
+            // Every new account (school, NGO or donor) is verified by an admin before it can log in.
+            accountStatus: "pending",
         });
 
         storedFiles = await storeUploads(user._id, accepted);
@@ -118,7 +118,7 @@ export const register = async (req, res, next) => {
         await PROFILE_MODELS[role].create(profile);
 
         return res.status(201).json({
-            message: role === "donor" ? "Registration successful." : "Registration submitted. Your account is pending admin approval.",
+            message: "Registration submitted. Your account is pending admin approval.",
             user: safeUser(user),
         });
     } catch (error) {
@@ -237,29 +237,8 @@ export const logout = async (req, res, next) => {
 };
 
 // ─── Sign in with Google ─────────────────────────────────────────────────────
-// Schools and NGOs can only sign in to an account that already exists (their registration needs
-// documents and admin approval). A donor without an account gets one. The admin console is password-only.
-const createGoogleDonor = async (res, google, remember) => {
-    let user;
-    try {
-        user = await User.create({
-            name: google.name || google.email.split("@")[0],
-            email: google.email,
-            role: "donor",
-            accountStatus: "active",
-            googleId: google.googleId,
-        });
-        await PROFILE_MODELS.donor.create({ userId: user._id });
-    } catch (error) {
-        if (user?._id) await User.deleteOne({ _id: user._id }).catch(() => {});
-        // Two sign-ins for the same new account at the same moment: the other one won.
-        if (error.code === 11000) return res.status(409).json({ code: "GOOGLE_RETRY", message: "Your account was just created. Please try again." });
-        throw error;
-    }
-    setAuthCookie(res, user, remember);
-    return res.status(201).json({ message: "Account created.", user: safeUser(user), created: true });
-};
-
+// Sign-in only: every account is created through its registration form (with documents) and
+// approved by an admin first. The admin console is password-only.
 export const googleLogin = async (req, res, next) => {
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const portalRole = body.role;
@@ -289,13 +268,10 @@ export const googleLogin = async (req, res, next) => {
             (await User.findOne({ email: google.email }).select("+password"));
 
         if (!user) {
-            if (portalRole !== "donor") {
-                return res.status(404).json({
-                    code: "GOOGLE_NO_ACCOUNT",
-                    message: `There's no ${ROLE_LABELS[portalRole]} account for ${google.email}. Register first, or sign in with your email and password.`,
-                });
-            }
-            return await createGoogleDonor(res, google, body.remember === true);
+            return res.status(404).json({
+                code: "GOOGLE_NO_ACCOUNT",
+                message: `There's no ${ROLE_LABELS[portalRole]} account for ${google.email}. Register first, or sign in with your email and password.`,
+            });
         }
 
         if (user.googleId && user.googleId !== google.googleId) {

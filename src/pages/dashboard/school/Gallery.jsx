@@ -1,83 +1,183 @@
 import { useState } from "react";
-import PageHeader from "../../../components/ui/PageHeader";
-import SegmentedControl from "../../../components/ui/SegmentedControl";
+import { Link } from "react-router-dom";
+import { LuFolderKanban, LuImage, LuImagePlus, LuTrash2 } from "react-icons/lu";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
-import { INITIAL_SCHOOL_PROFILE } from "../../../data/schoolDataStore";
-import { SCHOOL_PROJECTS_LIST } from "../../../data/projects";
+import AddPhotoModal from "../../../components/dashboard/school/AddPhotoModal";
+import Alert from "../../../components/ui/Alert";
+import Button from "../../../components/ui/Button";
+import Card from "../../../components/ui/Card";
+import EmptyState from "../../../components/ui/EmptyState";
+import Modal from "../../../components/ui/Modal";
+import PageHeader from "../../../components/ui/PageHeader";
+import ProtectedImage from "../../../components/ui/ProtectedImage";
+import SegmentedControl from "../../../components/ui/SegmentedControl";
+import { buttonClasses } from "../../../components/ui/classes";
+import { PHOTO_STAGES, deleteProjectPhoto } from "../../../api/photos";
+import { useAuth } from "../../../context/AuthContext";
+import useMyPhotos from "../../../hooks/useMyPhotos";
+import useMyProjects from "../../../hooks/useMyProjects";
+
+const formatWhen = (iso) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+const describe = (photo) => photo.caption || `${photo.project?.title || "Project"} (${photo.stage.toLowerCase()})`;
+
+const PhotoFallback = () => (
+  <span className="flex w-full h-full items-center justify-center bg-slate-100">
+    <LuImage className="w-6 h-6 text-slate-400" aria-hidden="true" />
+  </span>
+);
 
 const Gallery = () => {
-  const [profile] = useState(INITIAL_SCHOOL_PROFILE);
-  const [projects] = useState(SCHOOL_PROJECTS_LIST);
-  const [activeStage, setActiveStage] = useState("all"); // "all" | "before" | "working" | "completed"
+  const { user } = useAuth();
+  const { projects, loading: projectsLoading } = useMyProjects();
+  const { photos, loading, error, reload, add, remove } = useMyPhotos();
+  const [stage, setStage] = useState("all");
+  const [adding, setAdding] = useState(false);
+  const [viewing, setViewing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [deleteState, setDeleteState] = useState({ busy: false, error: "" });
 
-  const beforePhotos = projects.flatMap((p) => (p.beforePhotos || []).map((img) => ({ ...img, projectTitle: p.title })));
-  const workingPhotos = projects.flatMap((p) => (p.workingPhotos || []).map((img) => ({ ...img, projectTitle: p.title })));
-  const completionPhotos = projects.flatMap((p) => (p.completionPhotos || []).map((img) => ({ ...img, projectTitle: p.title })));
+  const displayed = stage === "all" ? photos : photos.filter((p) => p.stage === stage);
+  const stageOptions = [
+    { value: "all", label: "All", count: photos.length },
+    ...PHOTO_STAGES.map((s) => ({ value: s, label: s, count: photos.filter((p) => p.stage === s).length })),
+  ];
+  const hasProjects = projects.length > 0;
 
-  const displayPhotos =
-    activeStage === "before"
-      ? beforePhotos
-      : activeStage === "working"
-        ? workingPhotos
-        : activeStage === "completed"
-          ? completionPhotos
-          : [...beforePhotos, ...workingPhotos, ...completionPhotos];
+  const closeDelete = () => {
+    setDeleting(null);
+    setDeleteState({ busy: false, error: "" });
+  };
+  const confirmDelete = async () => {
+    setDeleteState({ busy: true, error: "" });
+    try {
+      await deleteProjectPhoto(deleting.id);
+      remove(deleting.id);
+      closeDelete();
+    } catch (deleteError) {
+      setDeleteState({ busy: false, error: deleteError.message || "Could not delete the photo. Please try again." });
+    }
+  };
+
+  const addButton = (
+    <Button icon={LuImagePlus} onClick={() => setAdding(true)} disabled={!hasProjects}>Add photo</Button>
+  );
 
   return (
-    <DashboardLayout role="school" userName={profile.name} userSub={profile.district} title="Progress Media Gallery" subtitle={profile.name} notifications={[1, 2]}>
-
+    <DashboardLayout role="school" userName={user?.name} userSub={user?.email} title="Photo gallery" subtitle="Your project photos">
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <PageHeader
+            title="Photo gallery"
+            description="Photos you've added of your projects: before, during and after the work. Only your school and the VIDYADAAN team can see them."
+            actions={addButton}
+          />
 
-        <PageHeader
-          title="Photo gallery"
-          description="Before, in-progress and completion photos from your projects."
-          actions={
-            <SegmentedControl
-              label="Filter photos by stage"
-              value={activeStage}
-              onChange={setActiveStage}
-              options={[
-                { value: "all", label: "All", count: beforePhotos.length + workingPhotos.length + completionPhotos.length },
-                { value: "before", label: "Before", count: beforePhotos.length },
-                { value: "working", label: "In progress", count: workingPhotos.length },
-                { value: "completed", label: "Completed", count: completionPhotos.length },
-              ]}
-            />
-          }
-        />
+          {error && (
+            <Alert tone="danger">
+              {error}{" "}
+              <button type="button" onClick={reload} className="font-medium underline underline-offset-2">Try again</button>
+            </Alert>
+          )}
 
-        {/* Gallery Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {displayPhotos.map((photo, i) => (
-            <div key={photo.id || i} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between group hover:shadow-md transition-all duration-300">
-              <div className="relative h-48 bg-slate-900 overflow-hidden">
-                <img src={photo.image} alt={photo.desc || photo.title} className="w-full h-full object-cover transition-transform duration-500" />
-                <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                  {photo.stage}
-                </div>
-                <div className="absolute top-3 right-3 bg-emerald-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                  ✓ Verified
-                </div>
-              </div>
+          {loading && <p className="text-sm text-slate-500" role="status">Loading your photos…</p>}
 
-              <div className="p-4 space-y-2 flex-1 flex flex-col justify-between text-xs">
-                <div>
-                  <span className="text-xs font-bold text-blue-600 truncate block">{photo.projectTitle}</span>
-                  <h3 className="font-semibold text-slate-900 text-xs mt-0.5 line-clamp-2">{photo.desc || photo.title}</h3>
-                </div>
+          {!loading && !error && photos.length === 0 && !projectsLoading && (
+            <Card>
+              {hasProjects ? (
+                <EmptyState
+                  icon={LuImage}
+                  title="No photos yet"
+                  description="Add before, in-progress and completion photos of your projects. They show how the work is going."
+                  action={addButton}
+                />
+              ) : (
+                <EmptyState
+                  icon={LuFolderKanban}
+                  title="Add a project first"
+                  description="Every photo belongs to a project. Create your school's first project, then add its photos here."
+                  action={<Link to="/dashboard/school/projects" className={buttonClasses()}>Go to projects</Link>}
+                />
+              )}
+            </Card>
+          )}
 
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-medium">
-                  <span>📅 {photo.date}</span>
-                  <span>Uploaded by Admin</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+          {photos.length > 0 && (
+            <>
+              <SegmentedControl label="Filter photos by stage" value={stage} onChange={setStage} options={stageOptions} />
 
+              {displayed.length === 0 ? (
+                <Card>
+                  <EmptyState icon={LuImage} title="No photos at this stage" />
+                </Card>
+              ) : (
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                  {displayed.map((photo) => (
+                    <li key={photo.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
+                      <button type="button" onClick={() => setViewing(photo)} className="relative block w-full h-48 bg-slate-100" aria-label={`View photo: ${describe(photo)}`}>
+                        <ProtectedImage fileId={photo.file?.id} alt="" className="w-full h-full object-cover" fallback={<PhotoFallback />} />
+                        <span className="absolute top-3 left-3 bg-black/60 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">{photo.stage}</span>
+                      </button>
+                      <div className="p-4 flex-1 flex flex-col gap-2">
+                        <div className="min-w-0">
+                          {photo.project && (
+                            <Link to={`/dashboard/school/progress?project=${photo.project.id}`} className="block truncate text-xs font-semibold text-blue-700 hover:underline">
+                              {photo.project.title}
+                            </Link>
+                          )}
+                          {photo.caption && <p className="mt-0.5 text-sm text-slate-900 line-clamp-2">{photo.caption}</p>}
+                        </div>
+                        <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-xs text-slate-500">
+                          <span>Added {formatWhen(photo.createdAt)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDeleting(photo)}
+                            aria-label={`Delete photo: ${describe(photo)}`}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <LuTrash2 className="w-4 h-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
         </div>
       </main>
+
+      {adding && <AddPhotoModal open projects={projects} onClose={() => setAdding(false)} onAdded={add} />}
+
+      {viewing && (
+        <Modal open size="lg" onClose={() => setViewing(null)} title={viewing.project?.title || "Photo"} description={`${viewing.stage} · Added ${formatWhen(viewing.createdAt)}`}>
+          <ProtectedImage
+            fileId={viewing.file?.id}
+            alt={describe(viewing)}
+            className="w-full max-h-[65vh] object-contain rounded-lg bg-slate-100"
+            fallback={<div className="h-64 rounded-lg"><PhotoFallback /></div>}
+          />
+          {viewing.caption && <p className="mt-3 text-sm text-slate-700">{viewing.caption}</p>}
+        </Modal>
+      )}
+
+      {deleting && (
+        <Modal
+          open
+          size="sm"
+          onClose={deleteState.busy ? () => {} : closeDelete}
+          title="Delete this photo?"
+          description="It will be removed from your gallery for good."
+          footer={
+            <>
+              <Button variant="secondary" onClick={closeDelete} disabled={deleteState.busy}>Cancel</Button>
+              <Button variant="destructive" onClick={confirmDelete} loading={deleteState.busy}>{deleteState.busy ? "Deleting…" : "Delete photo"}</Button>
+            </>
+          }
+        >
+          {deleteState.error ? <Alert tone="danger">{deleteState.error}</Alert> : <p className="text-sm text-slate-700">{describe(deleting)}</p>}
+        </Modal>
+      )}
     </DashboardLayout>
   );
 };

@@ -14,7 +14,7 @@ const JoinSelector = () => (
     legend="Account type"
     options={accountTypes}
     headerLink={{ prompt: "Already have an account?", label: "Sign in", href: "/login" }}
-    note="School and NGO accounts are verified by our team before activation."
+    note="Every account is verified by our team before activation, so have your documents ready."
   />
 );
 

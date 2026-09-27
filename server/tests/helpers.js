@@ -16,8 +16,9 @@ const { default: mongoose } = await import("mongoose");
 const { createApp } = await import("../app.js");
 const { setUploadDir } = await import("../utils/fileStorage.js");
 const { createOrResetAdmin } = await import("../services/adminAccount.js");
+const { UPLOAD_RULES } = await import("../../shared/registrationRules.js");
 const models = await Promise.all(
-    ["User", "SchoolProfile", "NGOProfile", "DonorProfile", "UploadedFile", "RevokedSession"].map((m) => import(`../models/${m}.js`))
+    ["User", "SchoolProfile", "NGOProfile", "DonorProfile", "UploadedFile", "RevokedSession", "Project"].map((m) => import(`../models/${m}.js`))
 );
 
 export const FRONTEND_ORIGIN = "http://localhost:5173";
@@ -192,7 +193,20 @@ export const createAdmin = async (overrides = {}) => {
 };
 
 /** Register (JSON) and return the response. */
-export const register = (client, data) => client.post("/api/auth/register", { json: data });
+/** The documents a role must upload at registration (small but genuine PDFs). */
+export const requiredFiles = (role) =>
+    Object.fromEntries(Object.entries(UPLOAD_RULES[role] || {}).filter(([, rule]) => rule.required).map(([field]) => [field, FILES.pdf()]));
+
+/** Register the way the React form does: the values as JSON plus the required documents. */
+export const register = (client, data, files = requiredFiles(data.role)) =>
+    client.post("/api/auth/register", { form: registrationForm(data, files) });
+
+/** Register, then approve the account as an admin would (every new account starts pending). */
+export const registerActive = async (client, data, files) => {
+    const res = await register(client, data, files);
+    await models[0].default.updateOne({ email: String(data.email).trim().toLowerCase() }, { $set: { accountStatus: "active" } });
+    return res;
+};
 
 export const login = (client, email, password = PASSWORD, role) =>
     client.post("/api/auth/login", { json: { email, password, ...(role ? { role } : {}) } });

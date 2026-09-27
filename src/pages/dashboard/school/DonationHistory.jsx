@@ -1,66 +1,76 @@
-import { useState } from "react";
-import { LuDownload } from "react-icons/lu";
-import Button from "../../../components/ui/Button";
-import PageHeader from "../../../components/ui/PageHeader";
+import { Link } from "react-router-dom";
+import { LuWallet } from "react-icons/lu";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
-import DonationTable from "../../../components/dashboard/DonationTable";
-import { INITIAL_SCHOOL_PROFILE } from "../../../data/schoolDataStore";
+import Alert from "../../../components/ui/Alert";
+import Card, { CardHeader } from "../../../components/ui/Card";
+import EmptyState from "../../../components/ui/EmptyState";
+import PageHeader from "../../../components/ui/PageHeader";
+import ProgressBar from "../../../components/ui/ProgressBar";
+import { useAuth } from "../../../context/AuthContext";
+import useMyProjects from "../../../hooks/useMyProjects";
+import { getFundingPercentage } from "../../../utils/funding";
 
-const donationSummary = [
-  { icon: "💰", label: "Total Donations Received", value: "₹4,82,000", change: 18, color: "emerald" },
-  { icon: "📅", label: "Monthly Donations (July)", value: "₹85,000", change: 12, color: "blue" },
-  { icon: "🏆", label: "Highest Single Donation", value: "₹50,000", change: 0, color: "amber" },
-  { icon: "❤️", label: "Active Donors", value: "42 Donors", change: 8, color: "purple" },
-];
-
-const mockDonations = [
-  { name: "Ramesh Kumar", sub: "Individual Donor", amount: 5000, date: "27 Jul 2026", purpose: "Sports Day Medals & Trophies", status: "Completed" },
-  { name: "Shiksha Seva Foundation", sub: "NGO Partner", amount: 25000, date: "25 Jul 2026", purpose: "Smart Board Installation", status: "Verified" },
-  { name: "Priya Mehta", sub: "CSR Contributor", amount: 10000, date: "22 Jul 2026", purpose: "RO Water Purifier Unit", status: "Verified" },
-  { name: "Tech Corp India Ltd", sub: "Corporate CSR", amount: 50000, date: "18 Jul 2026", purpose: "Rooftop Solar Panel Battery", status: "Completed" },
-  { name: "Anand Sharma", sub: "Alumni Donor", amount: 15000, date: "10 Jul 2026", purpose: "Library Books (200+ Books)", status: "Completed" },
-];
+const formatINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
 const DonationHistory = () => {
-  const [profile] = useState(INITIAL_SCHOOL_PROFILE);
+  const { user } = useAuth();
+  const { projects, loading, error, reload } = useMyProjects();
+  // Only approved projects can receive donations.
+  const approved = projects.filter((p) => p.reviewStatus === "OPEN");
 
   return (
-    <DashboardLayout role="school" userName={profile.name} userSub={profile.district} title="Donation History & Escrow Ledger" subtitle={profile.name} notifications={[1, 2]}>
-
+    <DashboardLayout role="school" userName={user?.name} userSub={user?.email} title="Donation history" subtitle="Money received for your projects">
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <PageHeader title="Donation history" description="Every donation to your school's projects, and how much each project has raised." />
 
-        <PageHeader
-          title="Donation history"
-          description="Donor contributions, CSR funds and 80G tax receipts for your school."
-          actions={
-            <Button variant="secondary" icon={LuDownload} onClick={() => alert("Exported official VIDYADAAN donation ledger CSV.")}>
-              Export CSV
-            </Button>
-          }
-        />
+          {error && (
+            <Alert tone="danger">
+              {error}{" "}
+              <button type="button" onClick={reload} className="font-medium underline underline-offset-2">Try again</button>
+            </Alert>
+          )}
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {donationSummary.map((card) => (
-            <div key={card.label} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-2xl">{card.icon}</span>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  +{card.change}%
-                </span>
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-400 block">{card.label}</span>
-                <span className="text-xl font-semibold text-slate-900">{card.value}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+          <Card>
+            <CardHeader title="Donations" />
+            <EmptyState
+              icon={LuWallet}
+              title="No donations yet"
+              description="Online payments aren't live yet. Once they are, each donation to your approved projects will be listed here."
+            />
+          </Card>
 
-        {/* Ledger Table */}
-        <DonationTable rows={mockDonations} title="Verified Project & Event Financial Ledger" />
-
+          <Card>
+            <CardHeader title="Funding by project" description="Approved projects only. Projects waiting for review can't receive donations yet." />
+            {loading ? (
+              <p className="px-5 py-4 text-sm text-slate-500" role="status">Loading your projects…</p>
+            ) : approved.length === 0 ? (
+              !error && (
+                <p className="px-5 py-4 text-sm text-slate-600">
+                  None of your projects has been approved yet.{" "}
+                  <Link to="/dashboard/school/projects" className="font-medium text-blue-700 hover:underline">See your projects</Link>
+                </p>
+              )
+            ) : (
+              <ul className="divide-y divide-slate-200">
+                {approved.map((p) => {
+                  const funded = getFundingPercentage(p.budget, p.raised);
+                  return (
+                    <li key={p.id} className="px-5 py-4">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <Link to={`/dashboard/school/progress?project=${p.id}`} className="text-sm font-medium text-slate-900 hover:underline">{p.title}</Link>
+                        <span className="text-xs text-slate-600 tabular-nums">{formatINR(p.raised)} of {formatINR(p.budget)}</span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <ProgressBar value={funded} label={`${p.title} funding`} />
+                        <span className="text-xs font-medium text-slate-900 tabular-nums shrink-0">{funded}%</span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
         </div>
       </main>
     </DashboardLayout>

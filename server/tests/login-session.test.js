@@ -3,7 +3,7 @@ import { after, before, describe, test } from "node:test";
 import jwt from "jsonwebtoken";
 import { Buffer } from "node:buffer";
 import process from "node:process";
-import { PASSWORD, createAdmin, createClient, donorData, login, ngoData, register, schoolData, startTestServer } from "./helpers.js";
+import { PASSWORD, createAdmin, createClient, donorData, login, ngoData, register, registerActive, schoolData, startTestServer } from "./helpers.js";
 
 let server;
 let User;
@@ -24,7 +24,7 @@ describe("login", () => {
     test("valid donor login: 200, safe user, httpOnly cookie", async () => {
         const c = newClient();
         const data = donorData();
-        await register(c, data);
+        await registerActive(c, data);
         const res = await login(c, data.email.toUpperCase(), PASSWORD, "donor");
         assert.equal(res.status, 200, JSON.stringify(res.body));
         assert.deepEqual(Object.keys(res.body.user).sort(), ["accountStatus", "email", "id", "name", "role"]);
@@ -41,7 +41,7 @@ describe("login", () => {
     test("remember me sets a 30-day cookie", async () => {
         const c = newClient();
         const data = donorData();
-        await register(c, data);
+        await registerActive(c, data);
         const res = await c.post("/api/auth/login", { json: { email: data.email, password: PASSWORD, role: "donor", remember: true } });
         assert.equal(res.status, 200);
         assert.match(res.setCookie, /Max-Age=2592000/);
@@ -50,7 +50,7 @@ describe("login", () => {
     test("wrong password and unknown email give the same generic 401", async () => {
         const c = newClient();
         const data = donorData();
-        await register(c, data);
+        await registerActive(c, data);
         const wrong = await login(c, data.email, "Wrong-password-1", "donor");
         const unknown = await login(c, "nobody@example.com", PASSWORD, "donor");
         for (const res of [wrong, unknown]) {
@@ -192,7 +192,7 @@ describe("session", () => {
     test("login → /me → logout → /me, and the old token is revoked", async () => {
         const c = newClient();
         const data = donorData();
-        await register(c, data);
+        await registerActive(c, data);
         await login(c, data.email, PASSWORD, "donor");
         const oldCookie = c.cookie;
 
@@ -239,8 +239,7 @@ describe("authorization", () => {
     const loggedIn = async (factory, role) => {
         const c = newClient();
         const data = factory();
-        await register(c, data);
-        if (role !== "donor") await approve(data.email);
+        await registerActive(c, data);
         assert.equal((await login(c, data.email, PASSWORD, role)).status, 200);
         return c;
     };

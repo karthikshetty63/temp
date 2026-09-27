@@ -1,15 +1,13 @@
-import GoogleSignInButton from "../../components/auth/GoogleSignInButton";
-import LoginErrorAlert from "../../components/auth/LoginErrorAlert";
+import FileUploadField from "../../components/auth/FileUploadField";
 import RegistrationLayout, { AgreeCheckbox, RegistrationSuccess, ReviewSummary } from "../../components/auth/RegistrationLayout";
+import Alert from "../../components/ui/Alert";
 import ChoiceChips from "../../components/ui/ChoiceChips";
 import FormField, { Input, Select, Textarea } from "../../components/ui/FormField";
 import SegmentedControl from "../../components/ui/SegmentedControl";
-import { GOOGLE_SIGN_IN_ENABLED } from "../../hooks/useGoogleButton";
-import usePortalLogin from "../../hooks/usePortalLogin";
 import useRegistrationForm from "../../hooks/useRegistrationForm";
 import { DONOR_CAUSES, DONOR_FREQUENCIES, DONOR_STATES } from "../../../shared/registrationRules.js";
 
-const STEPS = ["Personal details", "Address", "Password", "Preferences", "Review"];
+const STEPS = ["Personal details", "Address", "Password", "Preferences", "Documents", "Review"];
 
 const INITIAL_FORM = {
   name: "", email: "", phone: "", dob: "",
@@ -20,35 +18,24 @@ const INITIAL_FORM = {
 };
 
 const DonorRegister = () => {
-  const { form, set, step, errors, messages, loading, handleContinue, handleSubmit, prev } = useRegistrationForm("donor", INITIAL_FORM);
-  // One-click alternative to the form: Google creates the donor account (or signs in to an existing one).
-  const google = usePortalLogin("donor");
+  const { form, set, files, setFile, step, errors, messages, loading, handleContinue, handleSubmit, prev, uploadRules } = useRegistrationForm("donor", INITIAL_FORM);
   const isLastStep = step === STEPS.length - 1;
 
   if (step === STEPS.length) {
     return (
-      <RegistrationSuccess label="Donor registration" title="Your donor account is ready" actionHref="/login/donor" actionLabel="Sign in to your account">
-        Sign in to see school needs and track the impact of your donations.
+      <RegistrationSuccess label="Donor registration" title="Registration submitted" actionHref="/login/donor" actionLabel="Go to donor sign in">
+        Your account is <strong className="font-semibold text-slate-900">pending admin approval</strong>. Our team will check your PAN card, and you can
+        sign in once your account is approved.
       </RegistrationSuccess>
     );
   }
+
+  const attachedDocs = Object.entries(files).filter(([, f]) => f).map(([field]) => uploadRules[field].label);
 
   const passwordsMatch = form.password && form.confirm && form.password === form.confirm;
 
   const steps = [
     <div key="personal" className="space-y-5">
-      {GOOGLE_SIGN_IN_ENABLED && (
-        <div className="space-y-4">
-          <LoginErrorAlert error={google.error} correctPortal={google.correctPortal} />
-          <GoogleSignInButton text="signup_with" onCredential={google.handleGoogleCredential} busy={google.googleLoading} />
-          <p className="text-center text-xs text-slate-500">
-            By continuing with Google, you agree to VIDYADAAN&apos;s Terms of Service and Privacy Policy.
-          </p>
-          <div className="flex items-center gap-3 pt-1 text-xs text-slate-500" aria-hidden="true">
-            <span className="h-px flex-1 bg-slate-200" /> or register with your email <span className="h-px flex-1 bg-slate-200" />
-          </div>
-        </div>
-      )}
       <FormField label="Full name" required error={errors.name}>
         {(f) => <Input {...f} autoComplete="name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ramesh Kumar" />}
       </FormField>
@@ -113,11 +100,22 @@ const DonorRegister = () => {
       </label>
     </div>,
 
+    <div key="documents" className="space-y-5">
+      {Object.entries(uploadRules).map(([field, rule]) => (
+        <FileUploadField key={field} field={field} rule={rule} file={files[field]} onChange={(file) => setFile(field, file)} error={errors[field]} />
+      ))}
+      <Alert tone="neutral">
+        Your PAN card is used to verify your account and for 80G tax-exemption receipts. It is stored privately: only you and
+        VIDYADAAN administrators (for verification) can view it.
+      </Alert>
+    </div>,
+
     <div key="review" className="space-y-5">
       <ReviewSummary
         items={[
           ["Name", form.name], ["Email", form.email], ["Phone", form.phone], ["City", form.city], ["State", form.state],
           ["Causes", form.causes.join(", ")], ["Frequency", form.frequency], ["Anonymous", form.anonymous ? "Yes" : "No"],
+          ["Documents", attachedDocs.join(", ") || "None attached"],
         ]}
       />
       <AgreeCheckbox checked={form.agree} onChange={(v) => set("agree", v)} error={errors.agree}>
@@ -135,7 +133,7 @@ const DonorRegister = () => {
       messages={messages}
       loading={loading}
       nextDisabled={isLastStep && !form.agree}
-      nextLabel={isLastStep ? (loading ? "Creating account…" : "Create account") : "Continue"}
+      nextLabel={isLastStep ? (loading ? "Submitting…" : "Submit registration") : "Continue"}
       onPrev={prev}
       onNext={isLastStep ? handleSubmit : handleContinue}
       loginHref="/login/donor"

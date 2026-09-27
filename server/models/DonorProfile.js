@@ -12,6 +12,10 @@ const donorProfileSchema = new mongoose.Schema(
         causes: [String],
         frequency: String,
         anonymous: { type: Boolean, default: false },
+        // Private verification documents (owner + admin only).
+        documents: {
+            panCard: { type: mongoose.Schema.Types.ObjectId, ref: "UploadedFile" },
+        },
     },
     { timestamps: true }
 );

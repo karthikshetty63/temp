@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { LuExternalLink, LuHeartHandshake, LuSchool } from "react-icons/lu";
+import { useSearchParams } from "react-router-dom";
+import { LuExternalLink, LuHandHeart, LuHeartHandshake, LuSchool } from "react-icons/lu";
+import ProjectReviewSection from "../../../components/admin/ProjectReviewSection";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import Alert from "../../../components/ui/Alert";
 import Badge from "../../../components/ui/Badge";
@@ -19,7 +21,7 @@ import { UPLOAD_RULES } from "../../../../shared/registrationRules.js";
 
 const STATUS_TONES = { pending: "warning", active: "success", rejected: "danger" };
 const STATUS_LABELS = { pending: "Pending", active: "Approved", rejected: "Rejected" };
-const ROLE_LABELS = { school: "School", ngo: "NGO" };
+const ROLE_LABELS = { school: "School", ngo: "NGO", donor: "Donor" };
 
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
@@ -35,6 +37,10 @@ const FIELD_LABELS = {
     ["address", "Address"], ["district", "District"], ["state", "State"], ["contactName", "Contact person"], ["email", "Official email"],
     ["phone", "Phone"], ["altPhone", "Alternate phone"],
   ],
+  donor: [
+    ["phone", "Phone"], ["dob", "Date of birth"], ["address", "Address"], ["city", "City"], ["state", "State"], ["pin", "PIN code"],
+    ["causes", "Preferred causes"], ["frequency", "Donation frequency"], ["anonymous", "Anonymous donations"],
+  ],
 };
 
 const FACILITY_LABELS = { hasToilets: "Toilets", hasLibrary: "Library", hasComputers: "Computer lab", hasDrinkingWater: "Drinking water" };
@@ -42,7 +48,8 @@ const FACILITY_LABELS = { hasToilets: "Toilets", hasLibrary: "Library", hasCompu
 const formatValue = (key, value) => {
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && !value.length)) return "—";
   if (key === "infrastructure") return Object.entries(FACILITY_LABELS).filter(([k]) => value[k]).map(([, l]) => l).join(", ") || "None";
-  if (key === "regDate") return formatDate(value);
+  if (key === "regDate" || key === "dob") return formatDate(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
   if (Array.isArray(value)) return value.join(", ");
   return String(value);
 };
@@ -215,11 +222,10 @@ const AccountReviewModal = ({ accountId, onClose, onDecision }) => {
   );
 };
 
-/* ─── Admin dashboard ──────────────────────────────────── */
-const AdminDashboard = () => {
-  const { user } = useAuth();
+/* ─── Account approvals ────────────────────────────────── */
+const AccountApprovals = () => {
   const [filters, setFilters] = useState({ status: "pending", role: "all" });
-  const [result, setResult] = useState({ key: null, accounts: [], pendingCounts: { school: 0, ngo: 0 }, error: "" });
+  const [result, setResult] = useState({ key: null, accounts: [], pendingCounts: { school: 0, ngo: 0, donor: 0 }, error: "" });
   const [reloadCount, setReloadCount] = useState(0);
   const [selectedId, setSelectedId] = useState(null);
   const [notice, setNotice] = useState("");
@@ -243,14 +249,11 @@ const AdminDashboard = () => {
   };
 
   return (
-    <DashboardLayout role="admin" userName={user?.name || "Admin"} userSub={user?.email || "Platform admin"} title="Account approvals" subtitle="Verify school and NGO registrations">
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-          <PageHeader title="Account approvals" description="Schools and NGOs can sign in only after their registration is approved." />
-
+    <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <StatCard label="Schools pending" value={result.pendingCounts?.school ?? 0} icon={LuSchool} />
             <StatCard label="NGOs pending" value={result.pendingCounts?.ngo ?? 0} icon={LuHeartHandshake} />
+            <StatCard label="Donors pending" value={result.pendingCounts?.donor ?? 0} icon={LuHandHeart} />
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -264,7 +267,7 @@ const AdminDashboard = () => {
               label="Filter by account type"
               value={filters.role}
               onChange={(v) => setFilter("role", v)}
-              options={[{ value: "all", label: "All" }, { value: "school", label: "Schools" }, { value: "ngo", label: "NGOs" }]}
+              options={[{ value: "all", label: "All" }, { value: "school", label: "Schools" }, { value: "ngo", label: "NGOs" }, { value: "donor", label: "Donors" }]}
             />
           </div>
 
@@ -281,7 +284,7 @@ const AdminDashboard = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-left">
-                      {["Organisation", "Type", "Contact", "Location", "Submitted", "Documents", "Status"].map((h) => (
+                      {["Account", "Type", "Contact", "Location", "Submitted", "Documents", "Status"].map((h) => (
                         <th key={h} scope="col" className="px-5 py-2.5 text-xs font-medium text-slate-500 whitespace-nowrap">{h}</th>
                       ))}
                       <th scope="col" className="px-5 py-2.5"><span className="sr-only">Actions</span></th>
@@ -291,8 +294,11 @@ const AdminDashboard = () => {
                     {result.accounts.map((a) => (
                       <tr key={a.id} className="hover:bg-slate-50">
                         <td className="px-5 py-3">
-                          <p className="font-medium text-slate-900">{a.organisationName || "—"}</p>
-                          <p className="text-xs text-slate-500">{a.role === "school" ? "UDISE" : "Reg. no."} {a.identifier || "—"}</p>
+                          {/* Donors are people, not organisations. */}
+                          <p className="font-medium text-slate-900">{a.role === "donor" ? a.name : a.organisationName || "—"}</p>
+                          <p className="text-xs text-slate-500">
+                            {a.role === "donor" ? "Individual donor" : `${a.role === "school" ? "UDISE" : "Reg. no."} ${a.identifier || "—"}`}
+                          </p>
                         </td>
                         <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{ROLE_LABELS[a.role]}</td>
                         <td className="px-5 py-3">
@@ -313,8 +319,6 @@ const AdminDashboard = () => {
               </div>
             )}
           </Card>
-        </div>
-      </main>
 
       {selectedId && (
         <AccountReviewModal
@@ -327,6 +331,50 @@ const AdminDashboard = () => {
           }}
         />
       )}
+    </>
+  );
+};
+
+/* ─── Admin console ────────────────────────────────────── */
+const SECTIONS = {
+  accounts: {
+    title: "Account approvals",
+    subtitle: "Verify school, NGO and donor registrations",
+    description: "Schools, NGOs and donors can sign in only after their registration is approved.",
+  },
+  projects: {
+    title: "Project reviews",
+    subtitle: "Approve schools' projects",
+    description: "A school's project becomes visible to NGOs and donors only after it is approved.",
+  },
+};
+
+const AdminDashboard = () => {
+  const { user } = useAuth();
+  // The section lives in the address (?tab=projects) so a refresh or a shared link keeps it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "projects" ? "projects" : "accounts";
+  const section = SECTIONS[tab];
+
+  return (
+    <DashboardLayout role="admin" userName={user?.name || "Admin"} userSub={user?.email || "Platform admin"} title={section.title} subtitle={section.subtitle}>
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <PageHeader
+            title={section.title}
+            description={section.description}
+            actions={
+              <SegmentedControl
+                label="Admin section"
+                value={tab}
+                onChange={(v) => setSearchParams(v === "projects" ? { tab: "projects" } : {}, { replace: true })}
+                options={[{ value: "accounts", label: "Accounts" }, { value: "projects", label: "Projects" }]}
+              />
+            }
+          />
+          {tab === "projects" ? <ProjectReviewSection /> : <AccountApprovals />}
+        </div>
+      </main>
     </DashboardLayout>
   );
 };

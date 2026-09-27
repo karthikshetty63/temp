@@ -6,7 +6,8 @@
 export const ROLES = ["donor", "school", "ngo", "admin"];
 export const PUBLIC_ROLES = ["donor", "school", "ngo"];
 export const ACCOUNT_STATUSES = ["active", "pending", "rejected"];
-export const APPROVAL_ROLES = ["school", "ngo"];
+// Every public account is checked by an admin before it can sign in.
+export const APPROVAL_ROLES = ["school", "ngo", "donor"];
 
 export const PASSWORD_MIN_LENGTH = 8;
 // bcrypt silently ignores everything after 72 bytes, so longer passwords are rejected.
@@ -149,7 +150,7 @@ const accountFields = (step, { nameField = "name", nameLabel = "Full name", pass
 
 export const REGISTRATION_SCHEMAS = {
   donor: {
-    steps: ["Personal", "Address", "Password", "Preferences", "Review"],
+    steps: ["Personal", "Address", "Password", "Preferences", "Documents", "Review"],
     fields: {
       ...accountFields(0, { passwordStep: 2 }),
       phone: { label: "Phone number", required: true, step: 0, check: phone() },
@@ -161,7 +162,7 @@ export const REGISTRATION_SCHEMAS = {
       causes: { label: "Preferred causes", required: false, step: 3, check: manyOf(DONOR_CAUSES) },
       frequency: { label: "Donation frequency", required: false, step: 3, check: oneOf(DONOR_FREQUENCIES) },
       anonymous: { label: "Anonymous preference", required: false, step: 3, check: boolean() },
-      agree: { label: "Terms", required: true, step: 4, profile: false, check: mustBeTrue("You must accept the Terms of Service and Privacy Policy.") },
+      agree: { label: "Terms", required: true, step: 5, profile: false, check: mustBeTrue("You must accept the Terms of Service and Privacy Policy.") },
     },
   },
   school: {
@@ -265,6 +266,42 @@ export const pickProfileValues = (role, values) => {
 /** The display name stored on the User record for each role. */
 export const getAccountName = (role, values) => ({ donor: values.name, school: values.principalName, ngo: values.contactName }[role]);
 
+// ─── Editing a school profile after registration ─────────────────────────────
+// What a school may change itself. Its identity (name, UDISE, district, state, email) and bank
+// details were verified when the admin approved it, so they stay locked.
+export const SCHOOL_PROFILE_EDITABLE = ["principalName", "phone", "address", "students", "teachers", "hasToilets", "hasLibrary", "hasComputers", "hasDrinkingWater"];
+export const SCHOOL_FACILITY_FIELDS = ["hasToilets", "hasLibrary", "hasComputers", "hasDrinkingWater"];
+
+/**
+ * Validate a school's profile edit (only the fields sent), with the registration rules.
+ * @returns {{ errors: Record<string,string>, values: Record<string,unknown>, cleared: string[] }}
+ *   `cleared` = optional fields sent empty, to be removed.
+ */
+export const validateSchoolProfileUpdate = (data) => {
+  const input = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const fields = REGISTRATION_SCHEMAS.school.fields;
+  const errors = {};
+  const values = {};
+  const cleared = [];
+
+  for (const key of Object.keys(input)) {
+    if (!SCHOOL_PROFILE_EDITABLE.includes(key)) errors[key] = "This field can't be changed here.";
+  }
+  for (const name of SCHOOL_PROFILE_EDITABLE) {
+    if (!(name in input)) continue;
+    const rule = fields[name];
+    if (isBlank(input[name])) {
+      if (rule.required) errors[name] = `${rule.label} is required.`;
+      else cleared.push(name);
+      continue;
+    }
+    const result = rule.check(input[name], rule.label);
+    if (result.error) errors[name] = result.error;
+    else values[name] = result.value;
+  }
+  return { errors, values, cleared };
+};
+
 // ─── Uploads ─────────────────────────────────────────────────────────────────
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // matches "max 5MB" in the existing UI
 export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -273,17 +310,20 @@ export const DOCUMENT_TYPES = [...IMAGE_TYPES, "application/pdf"];
 // `field` is the multipart field name; `profilePath` is where the file id is stored on the profile.
 export const UPLOAD_RULES = {
   school: {
-    schoolCertificate: { label: "School Registration Certificate", hint: "PDF or Image", types: DOCUMENT_TYPES, required: false, profilePath: "documents.registrationCertificate", step: 3 },
-    principalIdProof: { label: "Principal ID Proof", hint: "Aadhaar / Govt ID", types: DOCUMENT_TYPES, required: false, profilePath: "documents.principalIdProof", step: 3 },
+    schoolCertificate: { label: "School Registration Certificate", hint: "PDF or Image", types: DOCUMENT_TYPES, required: true, profilePath: "documents.registrationCertificate", step: 3 },
+    principalIdProof: { label: "Principal ID Proof", hint: "Govt photo ID; if Aadhaar, mask the first 8 digits", types: DOCUMENT_TYPES, required: true, profilePath: "documents.principalIdProof", step: 3 },
     schoolPhoto: { label: "School Photograph", hint: "JPG/PNG/WebP, max 5MB", types: IMAGE_TYPES, required: false, profilePath: "photo", step: 3 },
   },
   ngo: {
-    registrationCertificate: { label: "Registration Certificate", hint: "PDF or Image, max 5MB", types: DOCUMENT_TYPES, required: false, profilePath: "documents.registrationCertificate", step: 5 },
+    registrationCertificate: { label: "Registration Certificate", hint: "PDF or Image, max 5MB", types: DOCUMENT_TYPES, required: true, profilePath: "documents.registrationCertificate", step: 5 },
     certificate12A80G: { label: "12A / 80G Certificate", hint: "PDF or Image, max 5MB", types: DOCUMENT_TYPES, required: false, profilePath: "documents.certificate12A80G", step: 5 },
     annualReport: { label: "Annual Report (Last Year)", hint: "PDF or Image, max 5MB", types: DOCUMENT_TYPES, required: false, profilePath: "documents.annualReport", step: 5 },
-    panCard: { label: "PAN Card", hint: "PDF or Image, max 5MB", types: DOCUMENT_TYPES, required: false, profilePath: "documents.panCard", step: 5 },
+    panCard: { label: "PAN Card", hint: "PDF or Image, max 5MB", types: DOCUMENT_TYPES, required: true, profilePath: "documents.panCard", step: 5 },
   },
-  donor: {},
+  donor: {
+    // Needed for 80G tax-exemption receipts, and checked by an admin before the account is activated.
+    panCard: { label: "PAN Card", hint: "PDF or photo, max 5MB", types: DOCUMENT_TYPES, required: true, profilePath: "documents.panCard", step: 4 },
+  },
 };
 
 const TYPE_LABELS = { "image/jpeg": "JPG", "image/png": "PNG", "image/webp": "WebP", "application/pdf": "PDF" };

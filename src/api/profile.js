@@ -9,3 +9,6 @@ export const uploadSchoolPhoto = (file) => {
 };
 
 export const removeSchoolPhoto = () => apiRequest("/api/profile/photo", { method: "DELETE" });
+
+/** Only the fields in `changes` are updated (see SCHOOL_PROFILE_EDITABLE). */
+export const updateSchoolProfile = (changes) => apiRequest("/api/profile/school", { method: "PATCH", body: changes });

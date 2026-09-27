@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { PASSWORD, createClient, donorData, login, register, startTestServer } from "./helpers.js";
+import { PASSWORD, createClient, donorData, login, registerActive, startTestServer } from "./helpers.js";
 
 describe("security hardening (rate limits on)", () => {
     let server;
@@ -25,7 +25,7 @@ describe("security hardening (rate limits on)", () => {
     test("failed logins are rate-limited; successful ones are not counted", async () => {
         const c = createClient(server.baseUrl);
         const data = donorData();
-        await register(c, data);
+        await registerActive(c, data);
         assert.equal((await login(c, data.email, PASSWORD, "donor")).status, 200, "success does not count");
         for (let i = 0; i < 3; i += 1) assert.equal((await login(c, data.email, "Wrong-pass-99", "donor")).status, 401);
         const blocked = await login(c, data.email, PASSWORD, "donor");
