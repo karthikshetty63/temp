@@ -268,12 +268,17 @@ describe("visibility", () => {
     test("(9) NGOs and donors get no project data from the existing project APIs", async () => {
         const { c } = await signedInSchool();
         const project = await createProject(c);
-        for (const [who, client] of [["NGO", await signedIn(ngoData, "ngo")], ["donor", await signedIn(donorData, "donor")]]) {
+        const ngo = await signedIn(ngoData, "ngo");
+        for (const [who, client] of [["NGO", ngo], ["donor", await signedIn(donorData, "donor")]]) {
             assert.equal((await client.get("/api/school/projects")).status, 403, who);
             assert.equal((await client.get(`/api/school/projects/${project.id}`)).status, 403, who);
         }
         assert.equal((await newClient().get(`/api/school/projects/${project.id}`)).status, 401, "public");
-        assert.equal((await newClient().get(`/api/projects/${project.id}`)).status, 404, "no public project API exists yet");
+        // NGOs only get the list of approved needs (GET /api/projects); there is no single-project or public route.
+        const listed = (await ngo.get("/api/projects")).body.projects.map((p) => p.id);
+        assert.ok(!listed.includes(project.id), "a project waiting for review is not listed");
+        assert.equal((await ngo.get(`/api/projects/${project.id}`)).status, 404, "no single-project route");
+        assert.equal((await newClient().get(`/api/projects/${project.id}`)).status, 401, "public");
         const otherSchool = (await signedInSchool()).c;
         assert.equal((await otherSchool.get(`/api/school/projects/${project.id}`)).status, 404, "another school");
     });

@@ -178,6 +178,14 @@ export const FILES = {
     oversized: (type = "image/png") => new File([Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(5 * 1024 * 1024 + 10)])], "big.png", { type }),
 };
 
+/** The multipart body the NGO payment form sends: its fields (parts as "1,2") + the proof file. */
+export const paymentForm = (fields, proof = FILES.png()) => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) form.append(key, Array.isArray(value) ? value.join(",") : String(value));
+    if (proof) form.append("proof", proof);
+    return form;
+};
+
 /** Build the multipart body the React forms send: `data` JSON + files. */
 export const registrationForm = (data, files = {}) => {
     const form = new FormData();

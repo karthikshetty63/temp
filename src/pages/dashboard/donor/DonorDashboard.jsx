@@ -8,16 +8,17 @@ import TimelineWidget from "../../../components/dashboard/TimelineWidget";
 import NeedCard from "../../../components/dashboard/NeedCard";
 import EventCard from "../../../components/events/EventCard";
 import SponsorEventModal from "../../../components/events/SponsorEventModal";
-import SponsorNeedModal from "../../../components/dashboard/SponsorNeedModal";
+import Alert from "../../../components/ui/Alert";
 import Badge from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
 import Card, { CardHeader } from "../../../components/ui/Card";
 import EmptyState from "../../../components/ui/EmptyState";
 import PageHeader from "../../../components/ui/PageHeader";
+import PaymentFlowModal from "../../../components/payment/PaymentFlowModal";
 import SectionHeader from "../../../components/ui/SectionHeader";
 import SegmentedControl from "../../../components/ui/SegmentedControl";
 import { initialEvents } from "../../../data/events";
-import { getFundingPercentage } from "../../../utils/funding";
+import useApprovedProjects from "../../../hooks/useApprovedProjects";
 
 const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -27,81 +28,6 @@ const stats = [
   { icon: LuClipboardList, label: "School needs funded", value: "4", change: 33 },
   { icon: LuCalendarDays, label: "Events sponsored", value: "2", change: 100 },
   { icon: LuReceipt, label: "Tax savings (80G)", value: "₹22,500", change: 15 },
-];
-
-const directSchoolNeedsList = [
-  {
-    id: "need-1",
-    label: "Smart Classroom & Interactive Board",
-    category: "Classroom",
-    schoolName: "Honnali Govt. Primary School",
-    district: "Davangere, Karnataka",
-    amount: "₹1,20,000",
-    progress: 35,
-    priority: "Urgent",
-    icon: "💻",
-    img: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-2",
-    label: "Girls Toilet Sanitation & Running Water",
-    category: "Water & Sanitation",
-    schoolName: "Govt. High School, Shikaripura",
-    district: "Shivamogga, Karnataka",
-    amount: "₹45,000",
-    progress: 72,
-    priority: "Urgent",
-    icon: "🚻",
-    img: "https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-3",
-    label: "Library Books (400+ English & Kannada)",
-    category: "Library",
-    schoolName: "GPS Tumkur Model School",
-    district: "Tumkur, Karnataka",
-    amount: "₹22,000",
-    progress: 10,
-    priority: "High",
-    icon: "📚",
-    img: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-4",
-    label: "RO Drinking Water Purifier Unit",
-    category: "Water & Sanitation",
-    schoolName: "GTHS Chitradurga School",
-    district: "Chitradurga, Karnataka",
-    amount: "₹18,000",
-    progress: 0,
-    priority: "Urgent",
-    icon: "💧",
-    img: "https://images.unsplash.com/photo-1576089172869-4f5f6f315620?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-5",
-    label: "5kW Solar Roof Panels & Battery",
-    category: "Infrastructure",
-    schoolName: "Zilla Parishad School, Mandya",
-    district: "Mandya, Karnataka",
-    amount: "₹2,80,000",
-    progress: 20,
-    priority: "Medium",
-    icon: "☀️",
-    img: "https://images.unsplash.com/photo-1509391365360-2e959784a276?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-6",
-    label: "Computer Lab Setup (10 Refurbished PCs)",
-    category: "Digital Labs",
-    schoolName: "Govt. HS Hosadurga",
-    district: "Chitradurga, Karnataka",
-    amount: "₹2,50,000",
-    progress: 60,
-    priority: "High",
-    icon: "🖥️",
-    img: "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=400&auto=format&fit=crop",
-  },
 ];
 
 const myDonations = [
@@ -126,28 +52,15 @@ const timeline = [
 /* ─── DONOR DASHBOARD ─────────────────────────────────────── */
 const DonorDashboard = () => {
   const { user } = useAuth();
+  // Approved school needs from the server (the donor view).
+  const { projects: needs, loading: needsLoading, error: needsError, reload: reloadNeeds, refresh: refreshNeeds } = useApprovedProjects();
+  // The need being donated to. After a confirmed donation its funding is reloaded from the server.
+  const [donatingTo, setDonatingTo] = useState(null);
   const [eventsList, setEventsList] = useState(initialEvents);
-  const [schoolNeeds, setSchoolNeeds] = useState(directSchoolNeedsList);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [needCategory, setNeedCategory] = useState("All");
 
   const [selectedEventForSponsor, setSelectedEventForSponsor] = useState(null);
-  const [selectedNeedForDonate, setSelectedNeedForDonate] = useState(null);
-
-  const handleNeedDonateSuccess = ({ needLabel, amount }) => {
-    setSchoolNeeds((prev) =>
-      prev.map((n) => {
-        if (n.label === needLabel) {
-          const targetNum = typeof n.amount === "number" ? n.amount : parseInt(n.amount.replace(/[^0-9]/g, "")) || 45000;
-          const currentRaised = Math.round((targetNum * n.progress) / 100);
-          const newRaised = currentRaised + amount;
-          const newPct = getFundingPercentage(targetNum, newRaised);
-          return { ...n, progress: newPct };
-        }
-        return n;
-      })
-    );
-  };
 
   const handleEventSponsorSuccess = ({ eventId, donorName, totalAmt, sponsoredItemIds }) => {
     setEventsList((prev) =>
@@ -171,7 +84,9 @@ const DonorDashboard = () => {
     );
   };
 
-  const filteredNeeds = schoolNeeds.filter(
+  // Only categories that actually have a need are offered.
+  const needCategories = [...new Set(needs.map((n) => n.category))].sort();
+  const filteredNeeds = needs.filter(
     (n) => needCategory === "All" || n.category === needCategory
   );
 
@@ -202,24 +117,44 @@ const DonorDashboard = () => {
             <SectionHeader
               id="needs-heading"
               title="School infrastructure needs"
-              description="Classrooms, toilets, drinking water, library books, computers and solar power."
+              description="Requests from government schools that the VIDYADAAN team has checked and approved."
               actions={
-                <SegmentedControl
-                  label="Filter needs by category"
-                  value={needCategory}
-                  onChange={setNeedCategory}
-                  options={["All", "Classroom", "Water & Sanitation", "Library", "Digital Labs"].map((c) => ({ value: c, label: c }))}
-                />
+                needs.length > 0 && (
+                  <SegmentedControl
+                    label="Filter needs by category"
+                    value={needCategory}
+                    onChange={setNeedCategory}
+                    options={["All", ...needCategories].map((c) => ({ value: c, label: c }))}
+                  />
+                )
               }
             />
-            {filteredNeeds.length ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredNeeds.map((need) => (
-                  <NeedCard key={need.id} need={need} actionLabel="Donate" onAction={setSelectedNeedForDonate} />
-                ))}
-              </div>
-            ) : (
-              <Card><EmptyState title="No needs in this category" description="Try another category." /></Card>
+            {needsError && (
+              <Alert tone="danger">
+                {needsError}{" "}
+                <button type="button" onClick={reloadNeeds} className="font-medium underline underline-offset-2">Try again</button>
+              </Alert>
+            )}
+            {needsLoading && <Card><p className="px-5 py-4 text-sm text-slate-500" role="status">Loading school needs…</p></Card>}
+            {!needsLoading && !needsError && needs.length === 0 && (
+              <Card>
+                <EmptyState
+                  icon={LuClipboardList}
+                  title="No approved school needs yet."
+                  description="When the VIDYADAAN team approves a school's request, it will appear here."
+                />
+              </Card>
+            )}
+            {!needsLoading && needs.length > 0 && (
+              filteredNeeds.length ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredNeeds.map((need) => (
+                    <NeedCard key={need.id} need={need} onDonate={setDonatingTo} />
+                  ))}
+                </div>
+              ) : (
+                <Card><EmptyState title="No needs in this category" description="Try another category." /></Card>
+              )
             )}
           </section>
 
@@ -299,12 +234,7 @@ const DonorDashboard = () => {
         </div>
       </main>
 
-      <SponsorNeedModal
-        isOpen={!!selectedNeedForDonate}
-        onClose={() => setSelectedNeedForDonate(null)}
-        need={selectedNeedForDonate}
-        onDonateSuccess={handleNeedDonateSuccess}
-      />
+      {donatingTo && <PaymentFlowModal need={donatingTo} onClose={() => setDonatingTo(null)} onConfirmed={refreshNeeds} />}
 
       <SponsorEventModal
         isOpen={!!selectedEventForSponsor}

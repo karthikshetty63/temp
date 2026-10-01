@@ -21,7 +21,7 @@ export const PROJECT_REVIEW_STATUSES = ["PENDING_REVIEW", "OPEN", "REJECTED"];
 export const PROJECT_REJECTION_REASON_MIN = 5;
 export const PROJECT_REJECTION_REASON_MAX = 500;
 
-export const PROJECT_BUDGET_MIN = 1000;
+export const PROJECT_BUDGET_MIN = 100;
 export const PROJECT_BUDGET_MAX = 10000000; // ₹1 crore
 const STUDENTS_MAX = 100000;
 const MATERIALS_MAX = 20;
@@ -133,6 +133,30 @@ export const validateProject = (data, { isUpdate = false } = {}) => {
     else values[field] = result.value;
   }
   return { errors, values };
+};
+
+// ─── Funding in parts ───────────────────────────────────────────────────────────
+// An approved need's budget is split into equal parts. An NGO commits to one or more parts (all of
+// them is the full amount); each part can be taken by only one NGO.
+export const FUNDING_PARTS = 5;
+
+/**
+ * Split a budget (whole rupees) into FUNDING_PARTS parts that add up to exactly the budget.
+ * When it doesn't divide evenly, the first parts are ₹1 more.
+ * @returns {Array<{ part: number, amount: number }>} part numbers start at 1
+ */
+export const splitIntoParts = (budget, count = FUNDING_PARTS) => {
+  const base = Math.floor(budget / count);
+  const extra = budget - base * count;
+  return Array.from({ length: count }, (_, i) => ({ part: i + 1, amount: base + (i < extra ? 1 : 0) }));
+};
+
+/** The parts an NGO chose: a non-empty list of different part numbers from 1 to FUNDING_PARTS. */
+export const validateFundingParts = (value) => {
+  if (!Array.isArray(value) || value.length === 0) return { error: "Choose at least one part to fund." };
+  if (value.some((p) => !Number.isInteger(p) || p < 1 || p > FUNDING_PARTS)) return { error: `Parts are numbered 1 to ${FUNDING_PARTS}.` };
+  if (new Set(value).size !== value.length) return { error: "Choose each part only once." };
+  return { value: [...value].sort((a, b) => a - b) };
 };
 
 // ─── Project photos (the school's gallery) ───────────────────────────────────────

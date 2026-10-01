@@ -1,401 +1,319 @@
-import React, { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { LuCircleCheck, LuLoaderCircle, LuLock, LuMapPin } from "react-icons/lu";
+import { DONATION_MAX, DONATION_MIN, createDonation, validateDonationAmount, verifyDonation } from "../../api/donations";
+import { useAuth } from "../../context/AuthContext";
+import { formatINR } from "../../utils/format";
+import { loadRazorpayCheckout } from "../../utils/razorpayCheckout";
+import { schoolPlace } from "../dashboard/ngo/format";
+import Alert from "../ui/Alert";
+import Button from "../ui/Button";
+import FormField from "../ui/FormField";
+import Modal from "../ui/Modal";
+import SegmentedControl from "../ui/SegmentedControl";
+import { inputClasses } from "../ui/classes";
 
-const paymentMethods = [
-  { id: "gpay", name: "Google Pay", icon: "🟢", category: "UPI" },
-  { id: "phonepe", name: "PhonePe", icon: "🟣", category: "UPI" },
-  { id: "paytm", name: "Paytm UPI", icon: "🔵", category: "UPI" },
-  { id: "bhim", name: "BHIM UPI", icon: "🇮🇳", category: "UPI" },
-  { id: "card", name: "Credit / Debit Card", icon: "💳", category: "Card" },
-  { id: "netbanking", name: "Net Banking (All Indian Banks)", icon: "🏦", category: "Bank" },
-  { id: "razorpay", name: "Razorpay Checkout", icon: "⚡", category: "Gateway" },
-  { id: "stripe", name: "Stripe International", icon: "🌐", category: "Gateway" },
-  { id: "csr", name: "CSR Corporate Transfer", icon: "💼", category: "Corporate" },
-  { id: "bank", name: "Direct Bank Transfer (NEFT/RTGS)", icon: "🏛️", category: "Bank" },
-];
+const QUICK_AMOUNTS = [500, 1000, 2500, 5000];
+const UNAVAILABLE = "Payment service is currently unavailable. Please try again.";
+// The server answered and refused the payment details, so the donation is definitely not confirmed.
+// Any other failure (no answer, a server problem, an expired session) means the payment may still have gone through.
+const REFUSED = [400, 404, 409];
+// Phases in which a request or Razorpay's window is open: the modal can't be closed and the form is locked.
+const BUSY = ["creating", "checkout", "verifying"];
+// Phases that show the amount form, and phases that show an outcome instead.
+const FORM_PHASES = ["form", "creating", "checkout"];
+const OUTCOME_PHASES = ["verifying", "confirmed", "refused", "unconfirmed"];
 
-const PaymentFlowModal = ({ isOpen, onClose, targetItem = null, onSuccess = null }) => {
-  const [step, setStep] = useState(1); // 1: Type/Amount, 2: Payment Method, 3: Review, 4: Processing, 5: Success
-  const [donationType, setDonationType] = useState("money"); // "money", "items", "event", "child"
-  const [amount, setAmount] = useState(targetItem?.amount || 2500);
-  const [selectedMethod, setSelectedMethod] = useState("gpay");
-  const [donorName, setDonorName] = useState("Ramesh Kumar");
-  const [donorEmail, setDonorEmail] = useState("ramesh.donor@gmail.com");
-  const [donorPan, setDonorPan] = useState("ABCDE1234F");
-  const [isAnonymous, setIsAnonymous] = useState(false);
-  const [receiptTxn, setReceiptTxn] = useState(null);
+const formatWhen = (iso) =>
+  new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 
-  if (!isOpen) return null;
+const Row = ({ label, children }) => (
+  <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
+    <dt className="text-slate-500">{label}</dt>
+    <dd className="min-w-0 text-right font-medium text-slate-900 break-all">{children}</dd>
+  </div>
+);
 
-  const handleProcessPayment = (e) => {
-    e.preventDefault();
-    setStep(4);
+/**
+ * Donate to an approved school need through Razorpay (test mode). `need` is the donor view from
+ * GET /api/projects. The donation is shown as confirmed only after the server has verified Razorpay's
+ * payment signature; `onConfirmed` then lets the page reload the need's funding from the server.
+ */
+const PaymentFlowModal = ({ need, onClose, onConfirmed }) => {
+  const { user } = useAuth();
+  // form → creating → checkout → verifying → confirmed | refused | unconfirmed (back to form if Razorpay is closed)
+  const [phase, setPhase] = useState("form");
+  const [amount, setAmount] = useState("");
+  const [amountError, setAmountError] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState(null); // { tone, text } after Razorpay's window is closed
+  const [order, setOrder] = useState(null); // the last order created: { amount, donation, checkout }
+  const [payment, setPayment] = useState(null); // what Razorpay returned, kept to check again: { donationId, values }
+  const [result, setResult] = useState(null); // the server's answer: { message, donation? }
+  const statusRef = useRef(null);
+  const amountRef = useRef(null);
 
-    setTimeout(() => {
-      const generatedTxn = {
-        txnId: `TXN-${Date.now().toString().slice(-8)}`,
-        receiptNo: `VD-80G-${Math.floor(1000 + Math.random() * 9000)}`,
-        amount: Number(amount),
-        date: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-        method: paymentMethods.find((m) => m.id === selectedMethod)?.name || "UPI",
-        donorName: isAnonymous ? "Anonymous Donor" : donorName,
-        pan: donorPan,
-        schoolName: targetItem?.schoolName || "Honnali Govt. Primary School",
-        purpose: targetItem?.title || "Classroom Infrastructure & Smart TV Upgrade",
-      };
+  // Each outcome moves focus to its heading, so it is read out; closing Razorpay returns to the amount.
+  useEffect(() => {
+    if (OUTCOME_PHASES.includes(phase)) statusRef.current?.focus();
+    else if (phase === "form" && notice) amountRef.current?.focus();
+  }, [phase, notice]);
 
-      setReceiptTxn(generatedTxn);
-      setStep(5);
-      if (onSuccess) onSuccess(generatedTxn);
-    }, 1500);
+  if (!need) return null;
+
+  const busy = BUSY.includes(phase);
+  const place = schoolPlace(need.school);
+  const typed = validateDonationAmount(amount).value;
+
+  const changeAmount = (value) => {
+    setAmount(value);
+    setAmountError("");
   };
 
-  const downloadReceipt = () => {
-    const receiptText = `================================================
-VIDYADAAN - 80G TAX DEDUCTION RECEIPT
-================================================
-Receipt No: ${receiptTxn?.receiptNo}
-Transaction ID: ${receiptTxn?.txnId}
-Date: ${receiptTxn?.date}
-
-Donor Name: ${receiptTxn?.donorName}
-PAN Number: ${receiptTxn?.pan}
-Amount Donated: ₹${receiptTxn?.amount?.toLocaleString("en-IN")}
-Payment Method: ${receiptTxn?.method}
-
-Beneficiary School: ${receiptTxn?.schoolName}
-Project Purpose: ${receiptTxn?.purpose}
-Verification Status: Escrow Ring-Fenced Account
-
-Thank you for empowering Government School children!
-================================================`;
-
-    const blob = new Blob([receiptText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `VIDYADAAN_80G_Receipt_${receiptTxn?.receiptNo}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Razorpay calls this after a successful payment. Only the server can say whether it counts.
+  const confirmPayment = async (donationId, response) => {
+    const values = {
+      razorpay_order_id: response?.razorpay_order_id,
+      razorpay_payment_id: response?.razorpay_payment_id,
+      razorpay_signature: response?.razorpay_signature,
+    };
+    setPayment({ donationId, values });
+    setPhase("verifying");
+    try {
+      const data = await verifyDonation(donationId, values);
+      if (data.donation?.status !== "PAID") throw new Error("The payment hasn't been confirmed yet.");
+      setResult(data);
+      setOrder(null);
+      setPhase("confirmed");
+      onConfirmed?.(data);
+    } catch (verifyError) {
+      setResult({ message: verifyError.message });
+      setPhase(REFUSED.includes(verifyError.status) ? "refused" : "unconfirmed");
+    }
   };
+
+  const openCheckout = (Razorpay, current) => {
+    const { checkout, donation } = current;
+    let lastFailure = "";
+    try {
+      const checkoutWindow = new Razorpay({
+        key: checkout.keyId,
+        order_id: checkout.orderId,
+        amount: checkout.amount,
+        currency: checkout.currency,
+        name: checkout.name,
+        description: checkout.description,
+        prefill: { name: user?.name || "", email: user?.email || "" },
+        theme: { color: "#4f46e5" },
+        handler: (response) => confirmPayment(donation.id, response),
+        modal: {
+          // The donor closed Razorpay's window without completing a payment.
+          ondismiss: () => {
+            setPhase("form");
+            setNotice(
+              lastFailure
+                ? { tone: "warning", text: `The last payment attempt didn't go through (${lastFailure}). You can try again.` }
+                : { tone: "neutral", text: "Payment cancelled. You can try again whenever you're ready." }
+            );
+          },
+        },
+      });
+      // A declined attempt: Razorpay keeps its window open so the donor can try another way to pay.
+      checkoutWindow.on("payment.failed", (response) => {
+        lastFailure = response?.error?.description || "the payment was declined";
+      });
+      setPhase("checkout");
+      checkoutWindow.open();
+    } catch {
+      setPhase("form");
+      setError(UNAVAILABLE);
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    const { value, error: invalid } = validateDonationAmount(amount);
+    setNotice(null);
+    setError("");
+    if (invalid) {
+      setAmountError(invalid);
+      return;
+    }
+    setAmountError("");
+    setPhase("creating");
+
+    // Razorpay's script first: if it can't load, no order is created.
+    let Razorpay;
+    try {
+      Razorpay = await loadRazorpayCheckout();
+    } catch {
+      setPhase("form");
+      setError(UNAVAILABLE);
+      return;
+    }
+
+    // Paying again after closing Razorpay, with the same amount, reuses the order already created.
+    let current = order?.amount === value ? order : null;
+    if (!current) {
+      try {
+        const data = await createDonation(need.id, value);
+        current = { amount: value, donation: data.donation, checkout: data.checkout };
+        setOrder(current);
+      } catch (createError) {
+        setPhase("form");
+        if (createError.errors?.amount) setAmountError(createError.errors.amount);
+        else setError(createError.message || "Couldn't start the payment. Please try again.");
+        return;
+      }
+    }
+    openCheckout(Razorpay, current);
+  };
+
+  const confirmed = phase === "confirmed" ? result.donation : null;
+  const paymentId = payment?.values.razorpay_payment_id;
+
+  const footers = {
+    confirmed: <Button onClick={onClose}>Done</Button>,
+    refused: <Button variant="secondary" onClick={onClose}>Close</Button>,
+    unconfirmed: (
+      <>
+        <Button variant="secondary" onClick={onClose}>Close</Button>
+        {/* The same values again: the server records a payment once, however often it is checked. */}
+        <Button onClick={() => confirmPayment(payment.donationId, payment.values)}>Check again</Button>
+      </>
+    ),
+    verifying: null,
+  };
+  const formFooter = (
+    <>
+      <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+      <Button
+        type="submit"
+        form="donation-form"
+        loading={phase === "creating"}
+        disabled={busy}
+        className="bg-linear-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700"
+      >
+        {phase === "creating" ? "Preparing secure payment…" : phase === "checkout" ? "Waiting for payment…" : typed ? `Donate ${formatINR(typed)}` : "Donate"}
+      </Button>
+    </>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Modal Card */}
-      <div className="relative w-full max-w-xl bg-white rounded-[28px] shadow-2xl border border-slate-100 overflow-hidden my-6 z-10 animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="px-6 py-5 bg-gradient-to-r from-blue-700 via-blue-600 to-emerald-600 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-lg font-bold">
-              💙
-            </div>
-            <div>
-              <h3 className="font-extrabold text-base">Secure Transparency Checkout</h3>
-              <p className="text-[11px] text-blue-100 font-medium">100% Tax Deductible under Section 80G</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center font-bold text-xs transition-colors"
-          >
-            ✕
-          </button>
+    <Modal
+      open
+      onClose={busy ? () => {} : onClose}
+      title="Make a donation"
+      footer={FORM_PHASES.includes(phase) ? formFooter : footers[phase]}
+    >
+      {phase === "verifying" && (
+        <div className="py-8 text-center" role="status">
+          <LuLoaderCircle className="mx-auto h-8 w-8 animate-spin text-indigo-600 motion-reduce:animate-none" aria-hidden="true" />
+          <h3 ref={statusRef} tabIndex={-1} className="mt-4 text-base font-semibold text-slate-900 focus:outline-none">Confirming your donation…</h3>
+          <p className="mt-1 text-sm text-slate-500">Checking the payment with Razorpay. Please keep this window open.</p>
         </div>
+      )}
 
-        {/* Step Indicator */}
-        {step < 4 && (
-          <div className="flex items-center justify-between px-8 py-3 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500">
-            <span className={step >= 1 ? "text-blue-600" : ""}>1. Amount</span>
-            <span>→</span>
-            <span className={step >= 2 ? "text-blue-600" : ""}>2. Payment Method</span>
-            <span>→</span>
-            <span className={step >= 3 ? "text-blue-600" : ""}>3. Review & Pay</span>
+      {confirmed && (
+        <div className="animate-view-enter motion-reduce:animate-none">
+          <div className="text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 ring-1 ring-emerald-100">
+              <LuCircleCheck className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+            </span>
+            <h3 ref={statusRef} tabIndex={-1} className="mt-3 text-lg font-semibold text-slate-900 focus:outline-none">Donation confirmed</h3>
+            <p className="mt-1 text-sm text-slate-600">Thank you. It now counts towards this need&rsquo;s funding.</p>
           </div>
-        )}
-
-        {/* Body Steps */}
-        <div className="p-6 sm:p-8">
-
-          {/* STEP 1: Donation Type & Amount */}
-          {step === 1 && (
-            <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                  Select Contribution Type
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {[
-                    { id: "money", label: "💵 Money Contribution", sub: "Direct Escrow Fund" },
-                    { id: "items", label: "📦 School Items", sub: "Benches, Books, Kits" },
-                    { id: "event", label: "🎟️ Sponsor Event Item", sub: "Food, Medals, Stage" },
-                    { id: "child", label: "👧 Sponsor a Child", sub: "Bicycle, Uniform, Fees" },
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setDonationType(t.id)}
-                      className={`p-3 rounded-2xl border-2 text-left transition-all ${
-                        donationType === t.id
-                          ? "border-blue-600 bg-blue-50/70 shadow-sm"
-                          : "border-slate-200 bg-white hover:border-slate-300"
-                      }`}
-                    >
-                      <p className="text-xs font-extrabold text-slate-900">{t.label}</p>
-                      <p className="text-[10px] text-slate-500 font-medium">{t.sub}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Amount Selection */}
-              <div>
-                <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                  Enter Contribution Amount (₹)
-                </label>
-                <div className="relative mb-3">
-                  <span className="absolute left-4 top-3.5 text-base font-black text-slate-400">₹</span>
-                  <input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full h-13 pl-9 pr-4 border-2 border-slate-200 rounded-2xl text-lg font-black focus:border-blue-600 focus:outline-none transition-colors"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  {[1000, 2500, 5000, 15000, 25000].map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setAmount(amt)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-                        Number(amount) === amt
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      ₹{amt.toLocaleString("en-IN")}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Donor Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Your Full Name</label>
-                  <input
-                    type="text"
-                    value={donorName}
-                    onChange={(e) => setDonorName(e.target.value)}
-                    className="w-full h-11 px-3.5 border-2 border-slate-200 rounded-xl text-xs font-medium focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">PAN (Required for 80G Tax Cert)</label>
-                  <input
-                    type="text"
-                    value={donorPan}
-                    onChange={(e) => setDonorPan(e.target.value)}
-                    placeholder="ABCDE1234F"
-                    className="w-full h-11 px-3.5 border-2 border-slate-200 rounded-xl text-xs font-medium uppercase focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isAnonymous}
-                    onChange={(e) => setIsAnonymous(e.target.checked)}
-                    className="w-4 h-4 accent-blue-600 rounded"
-                  />
-                  <span className="text-xs text-slate-600 font-medium">Donate Anonymously</span>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="h-12 px-7 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-full shadow-lg shadow-blue-600/25 transition-all"
-                >
-                  Select Payment Method →
-                </button>
-              </div>
-            </div>
+          <dl className="mt-5 divide-y divide-slate-200 rounded-xl border border-slate-200 text-sm">
+            <Row label="Amount"><span className="tabular-nums">{formatINR(confirmed.amount)}</span></Row>
+            <Row label="School need">{confirmed.project.title}</Row>
+            <Row label="Payment ID"><span className="font-mono text-xs">{confirmed.paymentId}</span></Row>
+            {confirmed.verifiedAt && <Row label="Confirmed">{formatWhen(confirmed.verifiedAt)}</Row>}
+          </dl>
+          {confirmed.mode === "test" && (
+            <p className="mt-3 text-xs text-slate-500">Razorpay test mode: no real money was charged.</p>
           )}
+        </div>
+      )}
 
-          {/* STEP 2: Payment Methods */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <p className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                Choose Secure Payment Gateway / Method
+      {phase === "refused" && (
+        <div ref={statusRef} tabIndex={-1} className="focus:outline-none">
+          <Alert tone="danger" title="Payment could not be confirmed.">
+            <p>{result.message}</p>
+            {paymentId && <p className="mt-2">Payment ID: <span className="font-mono">{paymentId}</span></p>}
+          </Alert>
+        </div>
+      )}
+
+      {phase === "unconfirmed" && (
+        <div ref={statusRef} tabIndex={-1} className="space-y-3 focus:outline-none">
+          <Alert tone="warning" title="Payment received by the payment gateway. We could not confirm it yet.">
+            <p>
+              Please check your donation status before trying again: use <span className="font-medium">Check again</span> in a moment, and
+              don&rsquo;t pay a second time. If it still can&rsquo;t be confirmed, contact VIDYADAAN support with your payment ID.
+            </p>
+            {paymentId && <p className="mt-2">Payment ID: <span className="font-mono">{paymentId}</span></p>}
+          </Alert>
+          {result?.message && <p className="text-xs text-slate-500">Reason: {result.message}</p>}
+        </div>
+      )}
+
+      {FORM_PHASES.includes(phase) && (
+        <form id="donation-form" onSubmit={handleSubmit} noValidate>
+          <fieldset disabled={busy} className="space-y-5">
+            <section aria-label="What you're supporting" className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3.5">
+              <p className="text-xs font-medium text-indigo-700">You&rsquo;re supporting</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{need.title}</p>
+              <p className="mt-0.5 flex items-start gap-1.5 text-xs text-slate-600">
+                <LuMapPin className="mt-px h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                <span>{need.school.name}{place && ` · ${place}`}</span>
               </p>
+              <p className="mt-2 text-xs text-slate-600 tabular-nums">
+                <span className="font-medium text-slate-900">{formatINR(need.raised)}</span> raised of {formatINR(need.budget)}
+              </p>
+            </section>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
-                {paymentMethods.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setSelectedMethod(m.id)}
-                    className={`p-3 rounded-2xl border-2 flex items-center justify-between transition-all ${
-                      selectedMethod === m.id
-                        ? "border-emerald-500 bg-emerald-50/60 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xl">{m.icon}</span>
-                      <div className="text-left">
-                        <p className="text-xs font-extrabold text-slate-900">{m.name}</p>
-                        <p className="text-[10px] text-slate-400 font-medium">{m.category}</p>
-                      </div>
-                    </div>
-                    {selectedMethod === m.id && <span className="text-emerald-600 font-black text-xs">✓</span>}
-                  </button>
-                ))}
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 font-medium flex items-center gap-2">
-                <span>🛡️</span>
-                <span>All transactions use ring-fenced escrow accounts with zero overhead deduction.</span>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="h-11 px-5 border-2 border-slate-200 text-slate-700 font-bold text-xs rounded-full hover:bg-slate-50 transition-colors"
-                >
-                  ← Back
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  className="h-12 px-7 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-full shadow-lg shadow-blue-600/25 transition-all"
-                >
-                  Review Order →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: Review */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-2.5 text-xs">
-                <div className="font-extrabold text-slate-900 text-sm border-b border-slate-200 pb-2 flex justify-between">
-                  <span>Donation Summary</span>
-                  <span className="text-blue-600">80G Tax Eligible</span>
+            <FormField label="Amount" error={amountError} hint={`Minimum ${formatINR(DONATION_MIN)}, up to ${formatINR(DONATION_MAX)} in one donation.`}>
+              {({ invalid, ...field }) => (
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-base font-medium text-slate-500" aria-hidden="true">₹</span>
+                  <input
+                    {...field}
+                    ref={amountRef}
+                    data-autofocus
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="0"
+                    value={amount}
+                    onChange={(e) => changeAmount(e.target.value)}
+                    aria-invalid={invalid || undefined}
+                    className={inputClasses({ invalid, className: "h-12 pl-8 pr-3 text-lg font-semibold tabular-nums" })}
+                  />
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Target School:</span>
-                  <span className="font-bold text-slate-900">{targetItem?.schoolName || "Honnali Govt. Primary School"}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Purpose:</span>
-                  <span className="font-bold text-slate-900">{targetItem?.title || "Classroom Infrastructure Upgrade"}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Donor Name:</span>
-                  <span className="font-bold text-slate-900">{isAnonymous ? "Anonymous Donor" : donorName}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>PAN Number:</span>
-                  <span className="font-bold text-slate-900">{donorPan}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Payment Gateway:</span>
-                  <span className="font-bold text-slate-900">{paymentMethods.find((m) => m.id === selectedMethod)?.name}</span>
-                </div>
-                <div className="pt-2 border-t border-slate-200 flex justify-between text-sm font-black text-slate-900">
-                  <span>Total Amount Payable:</span>
-                  <span className="text-emerald-600">₹{Number(amount).toLocaleString("en-IN")}</span>
-                </div>
-              </div>
+              )}
+            </FormField>
 
-              <button
-                onClick={handleProcessPayment}
-                className="w-full h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm rounded-full shadow-xl shadow-emerald-600/25 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                🔒 Confirm & Pay ₹{Number(amount).toLocaleString("en-IN")}
-              </button>
+            <SegmentedControl
+              label="Quick amounts"
+              value={amount}
+              onChange={changeAmount}
+              options={QUICK_AMOUNTS.map((a) => ({ value: String(a), label: formatINR(a) }))}
+            />
 
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="w-full text-center text-xs text-slate-500 font-semibold hover:underline"
-              >
-                Change Payment Method
-              </button>
-            </div>
-          )}
+            {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
+            {error && <Alert tone="danger">{error}</Alert>}
+            {phase === "checkout" && (
+              <p className="text-sm text-slate-600" role="status">Complete the payment in the Razorpay window.</p>
+            )}
 
-          {/* STEP 4: Processing */}
-          {step === 4 && (
-            <div className="py-12 text-center space-y-4">
-              <div className="w-14 h-14 border-4 border-emerald-500/20 border-t-emerald-600 rounded-full animate-spin mx-auto" />
-              <div>
-                <h4 className="font-extrabold text-slate-900 text-base">Processing Secure Escrow Transfer...</h4>
-                <p className="text-xs text-slate-500 mt-1">Connecting to {paymentMethods.find((m) => m.id === selectedMethod)?.name}</p>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 5: Success & Live Journey Start */}
-          {step === 5 && receiptTxn && (
-            <div className="space-y-6 text-center">
-              <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-4xl mx-auto animate-bounce">
-                🎉
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-black text-slate-900 mb-1">Payment Successful!</h3>
-                <p className="text-xs text-slate-600">
-                  Your donation of <strong>₹{receiptTxn.amount.toLocaleString("en-IN")}</strong> has been received and mapped to <strong>{receiptTxn.schoolName}</strong>.
-                </p>
-              </div>
-
-              {/* Receipt Summary Card */}
-              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 text-left space-y-2 text-xs">
-                <div className="flex justify-between font-bold text-emerald-900">
-                  <span>80G Receipt No:</span>
-                  <span>{receiptTxn.receiptNo}</span>
-                </div>
-                <div className="flex justify-between text-emerald-800">
-                  <span>Transaction ID:</span>
-                  <span className="font-mono text-[11px]">{receiptTxn.txnId}</span>
-                </div>
-                <div className="flex justify-between text-emerald-800">
-                  <span>Verification Status:</span>
-                  <span className="font-semibold text-emerald-700">✓ Escrow Ring-Fenced</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={downloadReceipt}
-                  className="flex-1 h-12 bg-white border-2 border-emerald-600 text-emerald-700 font-bold text-xs rounded-full hover:bg-emerald-50 transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <span>📜</span> Download 80G Tax Receipt
-                </button>
-                <button
-                  onClick={onClose}
-                  className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-full shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <span>📍</span> Track Live Donation Journey
-                </button>
-              </div>
-            </div>
-          )}
-
-        </div>
-      </div>
-    </div>
+            <p className="flex items-start gap-2 text-xs text-slate-500">
+              <LuLock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+              <span>Payment is handled securely by Razorpay. VIDYADAAN never sees your card, UPI or bank details.</span>
+            </p>
+          </fieldset>
+        </form>
+      )}
+    </Modal>
   );
 };
 

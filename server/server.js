@@ -4,6 +4,7 @@ import createApp from "./app.js";
 import connectDB from "./config/db.js";
 import { isEmailConfigured, verifyEmailTransport } from "./services/emailService.js";
 import { isGoogleSignInConfigured } from "./services/googleAuth.js";
+import { isLiveKeyConfigured, isRazorpayConfigured } from "./services/razorpay.js";
 
 dotenv.config();
 
@@ -40,6 +41,9 @@ const startServer = async () => {
                 ? "Google sign-in: enabled"
                 : "Google sign-in is not configured (VITE_GOOGLE_CLIENT_ID). The Google button stays hidden."
         );
+        if (isRazorpayConfigured()) console.log("Donations: Razorpay test mode enabled");
+        else if (isLiveKeyConfigured()) console.warn("Donations are off: RAZORPAY_KEY_ID is a live key. Only test keys (rzp_test_…) are accepted for now.");
+        else console.warn("Donations are off: set RAZORPAY_KEY_ID (a rzp_test_ key) and RAZORPAY_KEY_SECRET in .env.");
     } catch (error) {
         console.error("Server failed to start:", error.message);
         process.exit(1);

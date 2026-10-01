@@ -1,341 +1,284 @@
-import { useState } from "react";
-import { LuCalendarDays, LuClipboardList, LuSchool, LuUsers, LuWallet } from "react-icons/lu";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { LuCalendarDays } from "react-icons/lu";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
-import { useAuth } from "../../../context/AuthContext";
-import StatsWidget from "../../../components/dashboard/StatsWidget";
-import DonationTable from "../../../components/dashboard/DonationTable";
-import TimelineWidget from "../../../components/dashboard/TimelineWidget";
-import NeedCard from "../../../components/dashboard/NeedCard";
-import EventCard from "../../../components/events/EventCard";
-import SponsorEventModal from "../../../components/events/SponsorEventModal";
-import NGOProjectSupportModal from "../../../components/dashboard/NGOProjectSupportModal";
-import { StatusBadge } from "../../../components/ui/Badge";
-import Button from "../../../components/ui/Button";
-import Card, { CardHeader } from "../../../components/ui/Card";
+import ProofModal from "../../../components/dashboard/ProofModal";
+import FundNeedModal from "../../../components/dashboard/ngo/FundNeedModal";
+import FundingView from "../../../components/dashboard/ngo/FundingView";
+import NeedDetailsModal from "../../../components/dashboard/ngo/NeedDetailsModal";
+import NeedsView from "../../../components/dashboard/ngo/NeedsView";
+import OverviewView from "../../../components/dashboard/ngo/OverviewView";
+import RecordPaymentModal from "../../../components/dashboard/ngo/RecordPaymentModal";
+import VolunteerFormModal from "../../../components/dashboard/ngo/VolunteerFormModal";
+import VolunteersView from "../../../components/dashboard/ngo/VolunteersView";
+import YourProjectsView from "../../../components/dashboard/ngo/YourProjectsView";
+import { formatINR, partsLabel, sumAmounts, unpaidParts } from "../../../components/dashboard/ngo/format";
+import Alert from "../../../components/ui/Alert";
+import Card from "../../../components/ui/Card";
+import ConfirmModal from "../../../components/ui/ConfirmModal";
 import EmptyState from "../../../components/ui/EmptyState";
 import PageHeader from "../../../components/ui/PageHeader";
-import SectionHeader from "../../../components/ui/SectionHeader";
-import SegmentedControl from "../../../components/ui/SegmentedControl";
-import { initialEvents } from "../../../data/events";
-import { getFundingPercentage } from "../../../utils/funding";
+import { withdrawFunding } from "../../../api/projects";
+import { deleteVolunteer } from "../../../api/volunteers";
+import { useAuth } from "../../../context/AuthContext";
+import useApprovedProjects from "../../../hooks/useApprovedProjects";
+import useMyCommitments from "../../../hooks/useMyCommitments";
+import useMyPayments from "../../../hooks/useMyPayments";
+import useMyProfile from "../../../hooks/useMyProfile";
+import useVolunteers from "../../../hooks/useVolunteers";
 
-const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+// Each sidebar item opens its own view of the portal, like a separate page. The URL hash (#needs,
+// #funding…) says which, so a view can be bookmarked and the back button moves between views.
+const VIEWS = {
+  overview: "Dashboard",
+  needs: "School needs",
+  projects: "Your projects",
+  funding: "Funding",
+  volunteers: "Volunteers",
+  events: "School events",
+};
 
-/* ─── MOCK DATA ─────────────────────────────────────────── */
-const stats = [
-  { icon: LuSchool, label: "Schools supported", value: "14", change: 4 },
-  { icon: LuCalendarDays, label: "Events partnered", value: "5", change: 2 },
-  { icon: LuUsers, label: "Active volunteers", value: "67", change: 11 },
-  { icon: LuWallet, label: "Funds & items managed", value: "₹8.4L", change: 18 },
-];
+const EventsView = () => (
+  <>
+    <PageHeader title="School events" description="Events that schools ask NGOs to partner on." />
+    <Card>
+      <EmptyState
+        icon={LuCalendarDays}
+        title="No event requests yet"
+        description="Schools will soon be able to ask NGOs to partner on events. Their requests will appear here."
+      />
+    </Card>
+  </>
+);
 
-const directSchoolNeedsList = [
-  {
-    id: "need-1",
-    label: "Smart Classroom & Interactive Board",
-    category: "Classroom",
-    schoolName: "Honnali Govt. Primary School",
-    district: "Davangere, Karnataka",
-    amount: "₹1,20,000",
-    progress: 35,
-    priority: "Urgent",
-    icon: "💻",
-    img: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-2",
-    label: "Girls Toilet Sanitation & Running Water",
-    category: "Water & Sanitation",
-    schoolName: "Govt. High School, Shikaripura",
-    district: "Shivamogga, Karnataka",
-    amount: "₹45,000",
-    progress: 72,
-    priority: "Urgent",
-    icon: "🚻",
-    img: "https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-3",
-    label: "Library Books (400+ English & Kannada)",
-    category: "Library",
-    schoolName: "GPS Tumkur Model School",
-    district: "Tumkur, Karnataka",
-    amount: "₹22,000",
-    progress: 10,
-    priority: "High",
-    icon: "📚",
-    img: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-4",
-    label: "RO Drinking Water Purifier Unit",
-    category: "Water & Sanitation",
-    schoolName: "GTHS Chitradurga School",
-    district: "Chitradurga, Karnataka",
-    amount: "₹18,000",
-    progress: 0,
-    priority: "Urgent",
-    icon: "💧",
-    img: "https://images.unsplash.com/photo-1576089172869-4f5f6f315620?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-5",
-    label: "5kW Solar Roof Panels & Battery",
-    category: "Infrastructure",
-    schoolName: "Zilla Parishad School, Mandya",
-    district: "Mandya, Karnataka",
-    amount: "₹2,80,000",
-    progress: 20,
-    priority: "Medium",
-    icon: "☀️",
-    img: "https://images.unsplash.com/photo-1509391365360-2e959784a276?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "need-6",
-    label: "Computer Lab Setup (10 Refurbished PCs)",
-    category: "Digital Labs",
-    schoolName: "Govt. HS Hosadurga",
-    district: "Chitradurga, Karnataka",
-    amount: "₹2,50,000",
-    progress: 60,
-    priority: "High",
-    icon: "🖥️",
-    img: "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=400&auto=format&fit=crop",
-  },
-];
-
-const queue = [
-  { school: "Govt. HS Shikaripura", district: "Shivamogga", need: "Library Books", date: "25 Jul", urgency: "Urgent", students: 320 },
-  { school: "Govt. Primary Honnali", district: "Davangere", need: "Water Purifier", date: "23 Jul", urgency: "High", students: 438 },
-  { school: "GTHS Chitradurga", district: "Chitradurga", need: "Smart Board", date: "20 Jul", urgency: "Medium", students: 511 },
-  { school: "GPS Tumkur", district: "Tumkur", need: "Toilet Renovation", date: "18 Jul", urgency: "Urgent", students: 290 },
-];
-
-const volunteers = [
-  { name: "Ananya Sharma", role: "Field Coordinator", school: "Honnali Primary (Sports Day)", status: "Active" },
-  { name: "Rajiv Nair", role: "Event Coordinator", school: "Shikaripura (Science Fair)", status: "Active" },
-  { name: "Meena Pillai", role: "Health Worker", school: "GPS Tumkur", status: "On Leave" },
-  { name: "Suresh Kumar", role: "IT & Sound Tech", school: "Govt. HS Shikaripura", status: "Active" },
-  { name: "Divya Reddy", role: "Photography", school: "Multiple Events", status: "Active" },
-];
-
-const fundingRows = [
-  { name: "HDFC Bank CSR", sub: "Corporate", amount: 150000, date: "20 Jul 2026", purpose: "Sports Kits & Science Kits", status: "Completed" },
-  { name: "Infosys Foundation", sub: "CSR", amount: 200000, date: "15 Jul 2026", purpose: "Digital Labs & Sound", status: "Processing" },
-  { name: "Anonymous Donor", sub: "Individual", amount: 25000, date: "10 Jul 2026", purpose: "Midday Meal Food", status: "Completed" },
-  { name: "Rotary Club", sub: "Community", amount: 40000, date: "5 Jul 2026", purpose: "Water & Medals", status: "Verified" },
-];
-
-const timeline = [
-  { icon: "🎉", title: "Sports Day event request received", desc: "Honnali Primary requested support for 8 item packages", time: "1h ago", color: "bg-amber-100 text-amber-600" },
-  { icon: "👥", title: "6 Volunteers assigned to Sports Day", desc: "Field Coordinators assigned to Honnali school ground", time: "2h ago", color: "bg-purple-100 text-purple-600" },
-  { icon: "✅", title: "Science Fair completed & verified", desc: "Field visit report & 320 student photos uploaded", time: "3h ago", color: "bg-emerald-100 text-emerald-600" },
-  { icon: "💰", title: "₹1,50,000 received from HDFC CSR", desc: "Funds allocated to Sports Kits & Science Kits", time: "Yesterday", color: "bg-blue-100 text-blue-600" },
-];
-
-/* ─── NGO DASHBOARD ─────────────────────────────────────── */
 const NGODashboard = () => {
+  const location = useLocation();
+  const requested = location.hash.slice(1);
+  const view = Object.hasOwn(VIEWS, requested) ? requested : "overview";
+
   const { user } = useAuth();
-  const [eventsList, setEventsList] = useState(initialEvents);
-  const [schoolNeeds, setSchoolNeeds] = useState(directSchoolNeedsList);
-  const [needCategory, setNeedCategory] = useState("All");
-  const [selectedEventForSponsor, setSelectedEventForSponsor] = useState(null);
-  const [selectedNeedForDonate, setSelectedNeedForDonate] = useState(null);
+  const { profile } = useMyProfile();
+  const needsList = useApprovedProjects();
+  const commitments = useMyCommitments();
+  const paymentList = useMyPayments();
+  const volunteerList = useVolunteers();
+  const needs = needsList.projects;
+  const funded = commitments.projects;
+  const payments = paymentList.payments;
 
-  const handleNeedDonateSuccess = ({ needLabel, amount }) => {
-    setSchoolNeeds((prev) =>
-      prev.map((n) => {
-        if (n.label === needLabel) {
-          const targetNum = typeof n.amount === "number" ? n.amount : parseInt(n.amount.replace(/[^0-9]/g, "")) || 45000;
-          const currentRaised = Math.round((targetNum * n.progress) / 100);
-          const newRaised = currentRaised + amount;
-          const newPct = getFundingPercentage(targetNum, newRaised);
-          return { ...n, progress: newPct };
-        }
-        return n;
-      })
+  const [viewingId, setViewingId] = useState(null);
+  const [fundingId, setFundingId] = useState(null);
+  const [payingId, setPayingId] = useState(null);
+  const [viewingProof, setViewingProof] = useState(null);
+  const [withdrawing, setWithdrawing] = useState(null);
+  const [volunteerForm, setVolunteerForm] = useState(null); // { volunteer } — null volunteer means a new one
+  const [removingVolunteer, setRemovingVolunteer] = useState(null);
+  // A success message for the view it happened on; it disappears once you move to another view.
+  const [notice, setNotice] = useState(null); // { key: location.key, message }
+  const say = (message) => setNotice({ key: location.key, message });
+  const noticeHere = notice?.key === location.key && <Alert tone="success">{notice.message}</Alert>;
+
+  // A new view starts at the top, and focus moves to its heading, as it would on a new page.
+  const mainRef = useRef(null);
+  const viewRef = useRef(null);
+  const shownView = useRef(view);
+  useEffect(() => {
+    if (shownView.current === view) return;
+    shownView.current = view;
+    mainRef.current?.scrollTo({ top: 0 });
+    const heading = viewRef.current?.querySelector("h1");
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  }, [view]);
+
+  const place = [profile?.district, profile?.state].filter(Boolean).join(", ");
+
+  // Always the latest version of a need, so an open window reflects parts taken meanwhile.
+  const findNeed = (id) => needs.find((n) => n.id === id) || funded.find((n) => n.id === id);
+  const viewing = viewingId && findNeed(viewingId);
+  const funding = fundingId && findNeed(fundingId);
+  const paying = payingId && findNeed(payingId);
+  // Payments are newest first: if the latest for this need was rejected, show the school's reason.
+  const lastPayment = paying && payments.find((p) => p.project.id === paying.id);
+
+  const openDetails = (need) => setViewingId(need.id);
+  const openFunding = (need) => {
+    setNotice(null);
+    setViewingId(null);
+    setFundingId(need.id);
+  };
+  const openPayment = (need) => {
+    setNotice(null);
+    setViewingId(null);
+    setPayingId(need.id);
+  };
+  const handleCommitted = (project, message) => {
+    needsList.update(project);
+    commitments.refresh();
+    setFundingId(null);
+    say(
+      <>
+        {message} Next, pay the school and <Link to="#funding" className="font-medium underline underline-offset-2">record the payment</Link>.
+      </>
     );
   };
-
-  const handleSponsorSuccess = ({ eventId, donorName, totalAmt, sponsoredItemIds }) => {
-    setEventsList((prev) =>
-      prev.map((e) => {
-        if (e.id === eventId) {
-          const updatedItems = e.requestedItems.map((item) =>
-            sponsoredItemIds.includes(item.id)
-              ? { ...item, sponsored: true, sponsorName: donorName }
-              : item
-          );
-          const newRaised = e.raisedAmount + totalAmt;
-          return {
-            ...e,
-            raisedAmount: newRaised,
-            requestedItems: updatedItems,
-            volunteersAssigned: e.volunteersAssigned + 2,
-            status: newRaised >= e.requiredBudget ? "Fully Sponsored" : "Active",
-          };
-        }
-        return e;
-      })
-    );
+  const handlePaid = (data) => {
+    needsList.update(data.project);
+    commitments.refresh();
+    paymentList.refresh();
+    setPayingId(null);
+    say(data.message);
+  };
+  const handleConflict = () => {
+    needsList.refresh();
+    commitments.refresh();
+  };
+  const confirmWithdraw = async () => {
+    const data = await withdrawFunding(withdrawing.id);
+    needsList.update(data.project);
+    await commitments.refresh();
+    say(data.message);
+  };
+  const confirmRemoveVolunteer = async () => {
+    await deleteVolunteer(removingVolunteer.id);
+    volunteerList.remove(removingVolunteer.id);
+    say(`${removingVolunteer.name} has been removed.`);
+  };
+  const retry = () => {
+    needsList.reload();
+    commitments.reload();
   };
 
-  const filteredNeeds = schoolNeeds.filter((n) => needCategory === "All" || n.category === needCategory);
-  const openEvents = eventsList.filter((e) => e.status !== "Completed").length;
+  const content = {
+    overview: (
+      <OverviewView
+        profile={profile}
+        userName={user?.name}
+        needs={needs}
+        needsLoading={needsList.loading}
+        funded={funded}
+        fundedLoading={commitments.loading}
+        loadError={needsList.error || commitments.error}
+        notice={noticeHere}
+        onRetry={retry}
+        onViewNeed={openDetails}
+      />
+    ),
+    needs: (
+      <NeedsView
+        needs={needs}
+        loading={needsList.loading}
+        error={needsList.error}
+        homeState={profile?.state}
+        notice={noticeHere}
+        onView={openDetails}
+        onFund={openFunding}
+      />
+    ),
+    projects: <YourProjectsView projects={funded} loading={commitments.loading} error={commitments.error} notice={noticeHere} onView={openDetails} />,
+    funding: (
+      <FundingView
+        projects={funded}
+        payments={payments}
+        loading={commitments.loading || paymentList.loading}
+        error={commitments.error || paymentList.error}
+        notice={noticeHere}
+        onRecordPayment={openPayment}
+        onWithdraw={setWithdrawing}
+        onViewProof={setViewingProof}
+      />
+    ),
+    volunteers: (
+      <VolunteersView
+        volunteers={volunteerList.volunteers}
+        loading={volunteerList.loading}
+        error={volunteerList.error}
+        reload={volunteerList.reload}
+        notice={noticeHere}
+        onAdd={() => setVolunteerForm({ volunteer: null })}
+        onEdit={(v) => setVolunteerForm({ volunteer: v })}
+        onRemove={setRemovingVolunteer}
+      />
+    ),
+    events: <EventsView />,
+  }[view];
 
   return (
     <DashboardLayout
       role="ngo"
-      userName={user?.name || "NGO Partner"}
-      userSub={user?.email || "Verified NGO"}
-      title="NGO dashboard"
-      subtitle={user?.name || "NGO partner"}
+      userName={user?.name}
+      userSub={user?.email}
+      title={VIEWS[view]}
+      subtitle={[profile?.ngoName, place].filter(Boolean).join(" · ")}
     >
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-8">
-          <section id="overview" className="scroll-mt-6 space-y-6">
-            <PageHeader
-              title={user?.name || "NGO dashboard"}
-              description="Review school needs and event requests, coordinate volunteers and track funding."
-              actions={<Button onClick={() => scrollToSection("needs")}>Review school needs</Button>}
-            />
-            <StatsWidget stats={stats} />
-          </section>
-
-          <section id="needs" aria-labelledby="needs-heading" className="scroll-mt-6 space-y-4">
-            <SectionHeader
-              id="needs-heading"
-              title="School infrastructure needs"
-              description="Classrooms, toilets, drinking water, library books, computers and solar power."
-              actions={
-                <SegmentedControl
-                  label="Filter needs by category"
-                  value={needCategory}
-                  onChange={setNeedCategory}
-                  options={["All", "Classroom", "Water & Sanitation", "Library", "Digital Labs"].map((c) => ({ value: c, label: c }))}
-                />
-              }
-            />
-            {filteredNeeds.length ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredNeeds.map((need) => (
-                  <NeedCard key={need.id} need={need} actionLabel="Review & support" onAction={setSelectedNeedForDonate} />
-                ))}
-              </div>
-            ) : (
-              <Card><EmptyState title="No needs in this category" description="Try another category." /></Card>
-            )}
-          </section>
-
-          <section id="events" aria-labelledby="events-heading" className="scroll-mt-6 space-y-4">
-            <SectionHeader
-              id="events-heading"
-              title="School event requests"
-              description={`${openEvents} event${openEvents === 1 ? "" : "s"} looking for an NGO partner.`}
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {eventsList.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  userRole="ngo"
-                  onSponsorItems={(evt) => setSelectedEventForSponsor(evt)}
-                  onViewDetails={(evt) => setSelectedEventForSponsor(evt)}
-                />
-              ))}
-            </div>
-          </section>
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <Card as="section" id="schools" className="xl:col-span-2 scroll-mt-6">
-              <CardHeader title="School priority queue" description="Schools awaiting review and support" />
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-left">
-                      {["School", "Need", "Students", "Requested", "Urgency"].map((h) => (
-                        <th key={h} scope="col" className="px-5 py-2.5 text-xs font-medium text-slate-500 whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {queue.map((item) => (
-                      <tr key={item.school} className="hover:bg-slate-50">
-                        <td className="px-5 py-3">
-                          <p className="font-medium text-slate-900 whitespace-nowrap">{item.school}</p>
-                          <p className="text-xs text-slate-500">{item.district}</p>
-                        </td>
-                        <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{item.need}</td>
-                        <td className="px-5 py-3 text-slate-600 tabular-nums">{item.students}</td>
-                        <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{item.date}</td>
-                        <td className="px-5 py-3"><StatusBadge status={item.urgency} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-
-            <TimelineWidget events={timeline} title="NGO activity" />
-          </div>
-
-          <Card as="section" id="volunteers" className="scroll-mt-6">
-            <CardHeader title="Volunteers" description={`${volunteers.length} volunteers and their current assignments`} />
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-left">
-                    {["Volunteer", "Role", "Assigned to", "Status"].map((h) => (
-                      <th key={h} scope="col" className="px-5 py-2.5 text-xs font-medium text-slate-500 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {volunteers.map((v) => (
-                    <tr key={v.name} className="hover:bg-slate-50">
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 text-sm font-semibold flex items-center justify-center shrink-0" aria-hidden="true">{v.name.charAt(0)}</span>
-                          <span className="font-medium text-slate-900 whitespace-nowrap">{v.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{v.role}</td>
-                      <td className="px-5 py-3 text-slate-600">{v.school}</td>
-                      <td className="px-5 py-3"><StatusBadge status={v.status === "Active" ? "active" : "pending"}>{v.status}</StatusBadge></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          <section id="funding" className="scroll-mt-6">
-            <DonationTable rows={fundingRows} title="Event & project funding" />
-          </section>
-
-          <Card as="section" id="settings" className="scroll-mt-6">
-            <CardHeader title="Quick actions" />
-            <div className="flex flex-wrap gap-2 p-5">
-              <Button variant="secondary" icon={LuClipboardList} onClick={() => scrollToSection("needs")}>Review school needs</Button>
-              <Button variant="secondary" icon={LuCalendarDays} onClick={() => scrollToSection("events")}>Review event requests</Button>
-            </div>
-          </Card>
+      <main ref={mainRef} className="flex-1 overflow-y-auto">
+        {/* The fade-in moves only the inner box, so the view's own top edge (which the sidebar scrolls to) stays put. */}
+        <div key={view} ref={viewRef} id={view} className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+          <div className="space-y-6 animate-view-enter motion-reduce:animate-none">{content}</div>
         </div>
       </main>
 
-      <NGOProjectSupportModal
-        isOpen={!!selectedNeedForDonate}
-        onClose={() => setSelectedNeedForDonate(null)}
-        need={selectedNeedForDonate}
-        onSupportSuccess={handleNeedDonateSuccess}
-      />
-
-      <SponsorEventModal
-        isOpen={!!selectedEventForSponsor}
-        onClose={() => setSelectedEventForSponsor(null)}
-        event={selectedEventForSponsor}
-        onSponsorSuccess={handleSponsorSuccess}
-      />
+      {viewing && <NeedDetailsModal need={viewing} onClose={() => setViewingId(null)} onFund={openFunding} onRecordPayment={openPayment} />}
+      {funding && <FundNeedModal need={funding} onClose={() => setFundingId(null)} onCommitted={handleCommitted} onConflict={handleConflict} />}
+      {paying && (
+        <RecordPaymentModal
+          need={paying}
+          lastRejection={lastPayment?.status === "REJECTED" ? lastPayment.rejectionReason : null}
+          onClose={() => setPayingId(null)}
+          onSubmitted={handlePaid}
+        />
+      )}
+      {viewingProof && (
+        <ProofModal
+          proof={viewingProof.proof}
+          description={`${viewingProof.project.title} · ${formatINR(viewingProof.amount)} · Ref. ${viewingProof.reference}`}
+          onClose={() => setViewingProof(null)}
+        />
+      )}
+      {withdrawing && (
+        <ConfirmModal
+          title="Withdraw your commitment?"
+          confirmLabel="Withdraw"
+          busyLabel="Withdrawing…"
+          onConfirm={confirmWithdraw}
+          onClose={() => setWithdrawing(null)}
+        >
+          {(() => {
+            const unpaid = unpaidParts(withdrawing);
+            return (
+              <p>
+                {unpaid.length === withdrawing.parts.length ? `All ${unpaid.length} parts` : partsLabel(unpaid.map((p) => p.part))} (
+                {formatINR(sumAmounts(unpaid))}) of &ldquo;{withdrawing.title}&rdquo; will be free for other NGOs again. Parts you&rsquo;ve
+                already paid for stay with you.
+              </p>
+            );
+          })()}
+        </ConfirmModal>
+      )}
+      {volunteerForm && (
+        <VolunteerFormModal
+          volunteer={volunteerForm.volunteer}
+          projects={funded}
+          onClose={() => setVolunteerForm(null)}
+          onSaved={(v) => {
+            volunteerList.upsert(v);
+            say(volunteerForm.volunteer ? `${v.name}'s details have been saved.` : `${v.name} has been added.`);
+          }}
+        />
+      )}
+      {removingVolunteer && (
+        <ConfirmModal
+          title="Remove this volunteer?"
+          confirmLabel="Remove"
+          busyLabel="Removing…"
+          onConfirm={confirmRemoveVolunteer}
+          onClose={() => setRemovingVolunteer(null)}
+        >
+          <p>{removingVolunteer.name} ({removingVolunteer.role}) will be removed from your NGO&rsquo;s volunteer list.</p>
+        </ConfirmModal>
+      )}
     </DashboardLayout>
   );
 };

@@ -1,93 +1,69 @@
-import React from "react";
-import Container from "./Container";
+import { Link } from "react-router-dom";
 import VidyadaanLogo from "../ui/VidyadaanLogo";
+import { CONTACT } from "../../constants/contact";
 
-const footerLinks = {
-  "Quick Links": [
-    { label: "Home", href: "/" },
-    { label: "My Impact Portal", href: "/impact" },
-    { label: "About Us", href: "/#why" },
-    { label: "Projects", href: "/#projects" },
-    { label: "Contact Us", href: "/#contact" },
-  ],
-  "For Donors": [
-    { label: "Browse Schools", href: "/login/donor" },
-    { label: "Sponsor Event Packages", href: "/login/donor" },
-    { label: "80G Tax Exemption", href: "/login/donor" },
-    { label: "Corporate CSR Partnerships", href: "/#contact" },
-    { label: "Donor Login", href: "/login/donor" },
-  ],
-  "For Schools": [
-    { label: "School Registration", href: "/join/school" },
-    { label: "Submit Infrastructure Need", href: "/login/school" },
-    { label: "Request Event Support", href: "/login/school" },
-    { label: "Upload Before/After Photos", href: "/login/school" },
-    { label: "School Admin Login", href: "/login/school" },
-  ],
-  "For NGOs": [
-    { label: "NGO Registration", href: "/join/ngo" },
-    { label: "Review School Requests", href: "/login/ngo" },
-    { label: "Verify Completed Projects", href: "/login/ngo" },
-    { label: "Volunteer Management", href: "/login/ngo" },
-    { label: "NGO Partner Login", href: "/login/ngo" },
-  ],
-};
+// Only links that lead somewhere real.
+const COLUMNS = [
+  {
+    title: "Platform",
+    links: [
+      { label: "Features", to: "/#features" },
+      { label: "How it works", to: "/#how-it-works" },
+      { label: "Who it's for", to: "/#who-its-for" },
+      { label: "FAQ", to: "/#faq" },
+    ],
+  },
+  {
+    title: "Get started",
+    links: [
+      { label: "Register your school", to: "/join/school" },
+      { label: "Register your NGO", to: "/join/ngo" },
+      { label: "Create a donor account", to: "/join/donor" },
+      { label: "Sign in", to: "/login" },
+    ],
+  },
+];
 
-const Footer = () => {
-  return (
-    <footer className="bg-[#070F1E] text-slate-300 pt-16 pb-8 border-t border-slate-800">
-      <Container>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-10 pb-12 border-b border-slate-800/80">
-          {/* Brand Info */}
-          <div className="lg:col-span-2 space-y-4">
-            <VidyadaanLogo variant="light" showTagline={true} />
-            <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-              VIDYADAAN connects Government Schools, verified NGOs, and passionate Donors across India to build better classrooms, digital labs, and school event celebrations.
-            </p>
-            <div className="flex items-center gap-3 pt-2">
-              {["🌐", "📘", "🐦", "📸", "💼"].map((icon, i) => (
-                <button
-                  key={i}
-                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-blue-600 text-white flex items-center justify-center text-xs transition-colors"
-                >
-                  {icon}
-                </button>
-              ))}
-            </div>
-          </div>
+const linkClass = "text-[0.9375rem] text-zinc-600 transition-colors hover:text-zinc-900";
 
-          {/* Links Columns */}
-          {Object.entries(footerLinks).map(([category, links]) => (
-            <div key={category} className="space-y-3">
-              <h4 className="text-xs font-black text-white uppercase tracking-wider">{category}</h4>
-              <ul className="space-y-2">
-                {links.map((link) => (
-                  <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-xs text-slate-400 hover:text-blue-400 transition-colors"
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+const Footer = () => (
+  <footer className="border-t border-zinc-200 bg-white">
+    <div className="mx-auto grid max-w-[1200px] gap-10 px-5 py-16 sm:px-8 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr] lg:px-10">
+      <div className="max-w-xs">
+        <VidyadaanLogo showTagline={false} />
+        <p className="mt-4 text-[0.9375rem] leading-relaxed text-zinc-600">
+          Connecting government schools with verified NGOs and donors, one real need at a time.
+        </p>
+      </div>
 
-        {/* Bottom copyright */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <p>© {new Date().getFullYear()} VIDYADAAN. Empowering Government Schools Across India. All rights reserved.</p>
-          <div className="flex gap-6">
-            <a href="#" className="hover:underline">Privacy Policy</a>
-            <a href="#" className="hover:underline">Terms of Service</a>
-            <a href="#" className="hover:underline">80G Compliance</a>
-          </div>
-        </div>
-      </Container>
-    </footer>
-  );
-};
+      {COLUMNS.map(({ title, links }) => (
+        <nav key={title} aria-label={title}>
+          <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
+          <ul className="mt-4 space-y-3">
+            {links.map(({ label, to }) => (
+              <li key={label}><Link to={to} className={linkClass}>{label}</Link></li>
+            ))}
+          </ul>
+        </nav>
+      ))}
+
+      <div>
+        <h2 className="text-sm font-semibold text-zinc-900">Contact</h2>
+        <ul className="mt-4 space-y-3">
+          <li><a href={`mailto:${CONTACT.email}`} className={`${linkClass} break-words`}>{CONTACT.email}</a></li>
+          <li><a href={`tel:${CONTACT.phone}`} className={linkClass}>{CONTACT.phoneDisplay}</a></li>
+          <li className="text-[0.9375rem] text-zinc-600">{CONTACT.location}</li>
+        </ul>
+      </div>
+    </div>
+
+    <div className="border-t border-zinc-200">
+      <div className="mx-auto flex max-w-[1200px] flex-col gap-2 px-5 py-6 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
+        <p>© {new Date().getFullYear()} VIDYADAAN</p>
+        <p>Made for government schools in India</p>
+      </div>
+    </div>
+  </footer>
+);
 
 export default Footer;

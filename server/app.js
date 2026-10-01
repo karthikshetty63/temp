@@ -7,9 +7,14 @@ import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import { apiNotFound, errorHandler } from "./middleware/errorHandler.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import approvedProjectRoutes from "./routes/approvedProjectRoutes.js";
 import createAuthRouter from "./routes/authRoutes.js";
+import createDonationRouter from "./routes/donationRoutes.js";
 import fileRoutes from "./routes/fileRoutes.js";
+import ngoRoutes from "./routes/ngoRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
+import schoolCommitmentRoutes from "./routes/schoolCommitmentRoutes.js";
+import schoolPaymentRoutes from "./routes/schoolPaymentRoutes.js";
 import schoolPhotoRoutes from "./routes/schoolPhotoRoutes.js";
 import schoolProjectRoutes from "./routes/schoolProjectRoutes.js";
 
@@ -20,6 +25,8 @@ const DEFAULT_RATE_LIMITS = {
     // Each request can send an email, so this is kept tight: 5 per 15 minutes per IP.
     forgotPassword: { windowMs: 15 * 60 * 1000, limit: 5 },
     resetPassword: { windowMs: 15 * 60 * 1000, limit: 10 },
+    // Each new donation is a request to Razorpay: 20 per 15 minutes per donor.
+    donationOrders: { windowMs: 15 * 60 * 1000, limit: 20 },
 };
 
 const makeLimiter = (config, message, options = {}) =>
@@ -37,7 +44,7 @@ const makeLimiter = (config, message, options = {}) =>
 /**
  * @param {object} [options]
  * @param {string} [options.corsOrigin] the React app's origin (cookies are only accepted from it)
- * @param {false|{login?:object, register?:object, forgotPassword?:object, resetPassword?:object}} [options.rateLimits] false disables limits (tests)
+ * @param {false|{login?:object, register?:object, forgotPassword?:object, resetPassword?:object, donationOrders?:object}} [options.rateLimits] false disables limits (tests)
  * @param {string|number|boolean} [options.trustProxy] set when running behind a reverse proxy
  */
 export const createApp = ({ corsOrigin = "http://localhost:5173", rateLimits = DEFAULT_RATE_LIMITS, trustProxy } = {}) => {
@@ -68,6 +75,16 @@ export const createApp = ({ corsOrigin = "http://localhost:5173", rateLimits = D
     app.use("/api/files", fileRoutes);
     app.use("/api/school/projects", schoolProjectRoutes);
     app.use("/api/school/photos", schoolPhotoRoutes);
+    app.use("/api/school/commitments", schoolCommitmentRoutes);
+    app.use("/api/school/payments", schoolPaymentRoutes);
+    app.use("/api/projects", approvedProjectRoutes);
+    app.use("/api/ngo", ngoRoutes);
+    app.use("/api/donations", createDonationRouter({
+        // Counted per signed-in donor (the router checks who it is before this runs).
+        orderLimiter: makeLimiter(limits.donationOrders, "Too many donation attempts. Please wait a few minutes and try again.", {
+            keyGenerator: (req) => req.user._id.toString(),
+        }),
+    }));
 
     app.use("/api", apiNotFound);
     app.use(errorHandler);

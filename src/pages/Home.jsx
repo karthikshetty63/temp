@@ -1,34 +1,37 @@
-import Navbar from "../components/layout/Navbar";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Footer from "../components/layout/Footer";
-import Hero from "../components/sections/Hero";
-import Stats from "../components/sections/Stats";
-import WhySection from "../components/sections/WhySection";
-import ImpactStories from "../components/sections/ImpactStories";
-import FeaturedProjects from "../components/sections/FeaturedProjects";
-import HowItWorks from "../components/sections/HowItWorks";
-import MeetChildren from "../components/sections/MeetChildren";
-import CTA from "../components/sections/CTA";
-import FAQ from "../components/sections/FAQ";
-import Contact from "../components/sections/Contact";
+import Navbar from "../components/layout/Navbar";
+import Audiences from "../components/landing/Audiences";
+import Faq from "../components/landing/Faq";
+import Features from "../components/landing/Features";
+import GetStarted from "../components/landing/GetStarted";
+import Hero from "../components/landing/Hero";
+import HowItWorks from "../components/landing/HowItWorks";
 
 const Home = () => {
+  const { hash, key } = useLocation();
+
+  // Links like /#faq (from the header, the footer or another page) scroll to that section.
+  useEffect(() => {
+    if (!hash) return;
+    document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [hash, key]);
+
+  // The home page uses its own type (Geist); dashboards keep the UI font.
   return (
-    <>
+    <div className="font-landing text-zinc-950 antialiased">
       <Navbar />
-      <main>
+      <main className="pt-16">
         <Hero />
-        <Stats />
-        <WhySection />
-        <ImpactStories />
-        <FeaturedProjects />
+        <Features />
         <HowItWorks />
-        <MeetChildren />
-        <CTA />
-        <FAQ />
-        <Contact />
+        <Audiences />
+        <Faq />
+        <GetStarted />
       </main>
       <Footer />
-    </>
+    </div>
   );
 };
 

@@ -50,6 +50,8 @@ const ProjectFormModal = ({ open, onClose, onSaved, project = null }) => {
   // Editing a rejected project sends it back for review; the work status only exists once approved.
   const isResubmit = project?.reviewStatus === "REJECTED";
   const canSetStatus = project?.reviewStatus === "OPEN";
+  // NGOs commit to parts of the budget, so the server keeps it fixed once any part is taken.
+  const budgetLocked = project?.committed > 0;
   const [form, setForm] = useState(() => (project ? fromProject(project) : EMPTY));
   const [errors, setErrors] = useState({});
   const [error, setError] = useState("");
@@ -144,8 +146,13 @@ const ProjectFormModal = ({ open, onClose, onSaved, project = null }) => {
         </FormField>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <FormField label="Estimated budget (₹)" required error={errors.budget} hint={`₹${PROJECT_BUDGET_MIN.toLocaleString("en-IN")} – ₹${PROJECT_BUDGET_MAX.toLocaleString("en-IN")}`}>
-            {(f) => <Input {...f} inputMode="numeric" value={form.budget} onChange={set("budget")} placeholder="120000" />}
+          <FormField
+            label="Estimated budget (₹)"
+            required
+            error={errors.budget}
+            hint={budgetLocked ? "Fixed: NGOs have committed to fund parts of it." : `₹${PROJECT_BUDGET_MIN.toLocaleString("en-IN")} – ₹${PROJECT_BUDGET_MAX.toLocaleString("en-IN")}`}
+          >
+            {(f) => <Input {...f} inputMode="numeric" value={form.budget} onChange={set("budget")} placeholder="120000" disabled={budgetLocked} />}
           </FormField>
           <FormField label="Students benefited" required error={errors.studentsBenefited}>
             {(f) => <Input {...f} inputMode="numeric" value={form.studentsBenefited} onChange={set("studentsBenefited")} placeholder="240" />}

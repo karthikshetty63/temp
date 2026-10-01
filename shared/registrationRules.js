@@ -78,6 +78,8 @@ const phone = () => (v, label) => {
   if (!/^[1-9]\d{9}$/.test(digits)) return { error: `${label} must be a valid 10-digit Indian phone number.` };
   return { value: `+91${digits}` };
 };
+/** The same phone check for other forms: (value, label) → { value } | { error }. */
+export const checkIndianPhone = phone();
 
 const pattern = (regex, message, transform = (s) => s.trim()) => (v, label) => {
   if (typeof v !== "string") return { error: `${label} must be text.` };

@@ -61,11 +61,12 @@ describe("school projects: create and list", () => {
         assert.deepEqual(p.materials, ["Smart TV", "Dual Desks"]);
         assert.equal(p.status, "Open");
         assert.equal(p.raised, 0);
+        assert.equal(p.committed, 0);
         assert.equal(p.location, `${data.district}, ${data.state}`);
         assert.equal(p.expectedCompletion, inDays(120));
         assert.deepEqual(
             Object.keys(p).sort(),
-            ["budget", "category", "createdAt", "expectedCompletion", "id", "location", "materials", "priority", "problem", "raised", "rejectionReason", "reviewStatus", "reviewedAt", "status", "studentsBenefited", "submittedAt", "title", "updatedAt"]
+            ["budget", "category", "committed", "createdAt", "expectedCompletion", "id", "location", "materials", "priority", "problem", "raised", "rejectionReason", "reviewStatus", "reviewedAt", "status", "studentsBenefited", "submittedAt", "title", "updatedAt"]
         );
 
         const list = await c.get("/api/school/projects");
@@ -93,7 +94,7 @@ describe("school projects: create and list", () => {
             [{ category: "Swimming Pool" }, "category", /valid category/],
             [{ problem: "too short" }, "problem", /at least 20/],
             [{ priority: "Urgent!!" }, "priority", /valid priority/],
-            [{ budget: "500" }, "budget", /between ₹1,000/],
+            [{ budget: "99" }, "budget", /between ₹100 and/],
             [{ budget: "12.5" }, "budget", /whole number/],
             [{ budget: "-5000" }, "budget", /whole number/],
             [{ studentsBenefited: "0" }, "studentsBenefited", /between 1/],
@@ -109,6 +110,10 @@ describe("school projects: create and list", () => {
             assert.match(res.body.errors[field], pattern, field);
         }
         assert.equal((await c.get("/api/school/projects")).body.projects.length, 0, "nothing was saved");
+
+        const smallest = await create(c, { budget: "100" });
+        assert.equal(smallest.status, 201, "₹100 is the smallest budget allowed");
+        assert.equal(smallest.body.project.budget, 100);
     });
 
     test("mass assignment and injection are refused", async () => {

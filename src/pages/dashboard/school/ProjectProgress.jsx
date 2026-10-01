@@ -4,6 +4,7 @@ import { LuCamera, LuFolderKanban, LuPencil } from "react-icons/lu";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import ProjectStatusBadge from "../../../components/dashboard/ProjectStatusBadge";
 import ProjectFormModal from "../../../components/dashboard/school/ProjectFormModal";
+import ProjectFundingCard from "../../../components/dashboard/school/ProjectFundingCard";
 import Alert from "../../../components/ui/Alert";
 import Badge, { StatusBadge } from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
@@ -14,6 +15,8 @@ import PageHeader from "../../../components/ui/PageHeader";
 import { buttonClasses } from "../../../components/ui/classes";
 import { useAuth } from "../../../context/AuthContext";
 import useMyProjects from "../../../hooks/useMyProjects";
+import useSchoolCommitments from "../../../hooks/useSchoolCommitments";
+import useSchoolPayments from "../../../hooks/useSchoolPayments";
 
 const formatINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 const formatDate = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -28,8 +31,11 @@ const Detail = ({ label, children }) => (
 const ProjectProgress = () => {
   const { user } = useAuth();
   const { projects, loading, error, reload, upsert } = useMyProjects();
+  const funding = useSchoolCommitments();
+  const paymentList = useSchoolPayments();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editing, setEditing] = useState(false);
+  const [notice, setNotice] = useState(null); // { projectId, message } after accepting or rejecting a payment
 
   // The project comes from the link (?project=…) so it survives a refresh; default to the newest.
   const current = projects.find((p) => p.id === searchParams.get("project")) || projects[0];
@@ -117,6 +123,20 @@ const ProjectProgress = () => {
                   )}
                 </dl>
               </Card>
+
+              {notice?.projectId === current.id && <Alert tone="success">{notice.message}</Alert>}
+              <ProjectFundingCard
+                project={current}
+                commitments={funding.commitments}
+                payments={paymentList.payments}
+                loading={funding.loading || paymentList.loading}
+                error={funding.error || paymentList.error}
+                onReviewed={async (data) => {
+                  if (data.project) upsert(data.project);
+                  await Promise.all([funding.refresh(), paymentList.refresh()]);
+                  setNotice({ projectId: current.id, message: data.message });
+                }}
+              />
 
               <Card>
                 <EmptyState

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  LuAward, LuBell, LuBuilding2, LuCalendarDays, LuChartBar, LuChevronsLeft, LuChevronsRight, LuClipboardList,
+  LuAward, LuBell, LuBuilding2, LuCalendarDays, LuChevronsLeft, LuChevronsRight, LuClipboardList,
   LuFileText, LuFolderKanban, LuImage, LuLayoutDashboard, LuLogOut, LuReceipt, LuSchool, LuSettings,
   LuShieldCheck, LuSprout, LuTrendingUp, LuUsers, LuWallet, LuX,
 } from "react-icons/lu";
@@ -25,13 +25,11 @@ const NAV = {
   ],
   ngo: [
     { icon: LuLayoutDashboard, label: "Dashboard", href: "/dashboard/ngo#overview" },
-    { icon: LuClipboardList, label: "Direct School Needs", href: "/dashboard/ngo#needs" },
-    { icon: LuCalendarDays, label: "School Event Requests", href: "/dashboard/ngo#events" },
-    { icon: LuSchool, label: "Schools Queue", href: "/dashboard/ngo#schools" },
-    { icon: LuUsers, label: "Volunteers", href: "/dashboard/ngo#volunteers" },
+    { icon: LuClipboardList, label: "School Needs", href: "/dashboard/ngo#needs" },
+    { icon: LuFolderKanban, label: "Your Projects", href: "/dashboard/ngo#projects" },
     { icon: LuWallet, label: "Funding", href: "/dashboard/ngo#funding" },
-    { icon: LuChartBar, label: "Reports", href: "/dashboard/ngo#reports" },
-    { icon: LuSettings, label: "Settings", href: "/dashboard/ngo#settings" },
+    { icon: LuUsers, label: "Volunteers", href: "/dashboard/ngo#volunteers" },
+    { icon: LuCalendarDays, label: "School Events", href: "/dashboard/ngo#events" },
   ],
   donor: [
     { icon: LuLayoutDashboard, label: "Dashboard", href: "/dashboard/donor#overview" },

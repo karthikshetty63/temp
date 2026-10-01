@@ -7,6 +7,7 @@ import {
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import ProjectStatusBadge from "../../../components/dashboard/ProjectStatusBadge";
 import ProjectFormModal from "../../../components/dashboard/school/ProjectFormModal";
+import { groupCommitments, groupStatus } from "../../../components/dashboard/school/commitments";
 import Alert from "../../../components/ui/Alert";
 import Badge, { StatusBadge } from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
@@ -21,7 +22,11 @@ import { PROJECT_CATEGORY_ICONS } from "../../../constants/infrastructureCategor
 import { useAuth } from "../../../context/AuthContext";
 import useMyProfile, { toSchoolDisplayProfile } from "../../../hooks/useMyProfile";
 import useMyProjects from "../../../hooks/useMyProjects";
+import useSchoolCommitments from "../../../hooks/useSchoolCommitments";
+import useSchoolPayments from "../../../hooks/useSchoolPayments";
+import { FUNDING_PARTS } from "../../../api/projects";
 import { getFundingPercentage } from "../../../utils/funding";
+import { partsOf } from "../../../utils/format";
 
 // Shown until the school's profile has loaded, so no sample school ever appears.
 const NO_PROFILE = { name: "", udise: "", district: "", studentsCount: "—", teachersCount: "—", principalName: "", photo: null };
@@ -46,6 +51,10 @@ const Dashboard = () => {
   const { profile: myProfile } = useMyProfile();
   const profile = toSchoolDisplayProfile(myProfile, NO_PROFILE);
   const { projects, loading, error, reload, upsert } = useMyProjects();
+  const { commitments, loading: commitmentsLoading, error: commitmentsError } = useSchoolCommitments();
+  const ngoActivity = groupCommitments(commitments);
+  const { payments } = useSchoolPayments();
+  const paymentsToCheck = payments.filter((p) => p.status === "SUBMITTED");
   const [isNeedModalOpen, setIsNeedModalOpen] = useState(false);
 
   // Every figure below is counted from the school's own projects. Only approved projects count
@@ -140,6 +149,12 @@ const Dashboard = () => {
             <Alert tone="danger">
               {error}{" "}
               <button type="button" onClick={reload} className="font-medium underline underline-offset-2">Try again</button>
+            </Alert>
+          )}
+          {paymentsToCheck.length > 0 && (
+            <Alert tone="warning" title={`${paymentsToCheck.length} ${paymentsToCheck.length === 1 ? "payment is" : "payments are"} waiting for you to check`}>
+              NGOs have paid your school and sent proof. Check your bank account, then accept or reject each payment.{" "}
+              <Link to="/dashboard/school/donations" className="font-medium underline underline-offset-2">Check payments</Link>
             </Alert>
           )}
 
@@ -300,13 +315,41 @@ const Dashboard = () => {
             </Card>
 
             <Card>
-              <CardHeader title="NGO activity" />
-              <EmptyState
-                icon={LuHeartHandshake}
-                title="No NGO activity yet"
-                description="When an NGO takes up one of your approved projects, its updates will appear here."
-                className="py-8"
+              <CardHeader
+                title="NGO activity"
+                description={ngoActivity.length ? `${formatINR(commitments.reduce((sum, c) => sum + c.amount, 0))} committed by NGOs` : undefined}
               />
+              {commitmentsLoading && <p className="px-5 py-4 text-sm text-slate-500" role="status">Loading NGO activity…</p>}
+              {!commitmentsLoading && commitmentsError && <p className="px-5 py-4 text-sm text-slate-500">{commitmentsError}</p>}
+              {!commitmentsLoading && !commitmentsError && ngoActivity.length === 0 && (
+                <EmptyState
+                  icon={LuHeartHandshake}
+                  title="No NGO activity yet"
+                  description="When an NGO commits to fund one of your approved projects, it will appear here."
+                  className="py-8"
+                />
+              )}
+              {ngoActivity.length > 0 && (
+                <ul className="divide-y divide-slate-200">
+                  {ngoActivity.slice(0, 4).map((a) => (
+                    <li key={a.key}>
+                      <Link to={`/dashboard/school/progress?project=${a.projectId}`} className="flex gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors">
+                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${a.received === a.parts.length ? "bg-emerald-500" : a.toCheck ? "bg-amber-500" : "bg-blue-500"}`} aria-hidden="true" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900">{a.ngo.name} committed {formatINR(a.amount)}</p>
+                          <p className="mt-0.5 text-xs text-slate-600 truncate">
+                            {a.projectTitle} · {partsOf(a.parts, FUNDING_PARTS).toLowerCase()}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {formatWhen(a.committedAt)} ·{" "}
+                            {groupStatus(a)}
+                          </p>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Card>
           </div>
         </div>
