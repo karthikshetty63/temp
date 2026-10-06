@@ -3,18 +3,22 @@
 // so there is exactly one definition of each style.
 
 // Button variants
-//   primary      main action on a screen (one per area)
-//   secondary    neutral / alternative action
-//   destructive  irreversible or negative action (reject, delete)
-//   ghost        low-emphasis action inside toolbars, cards and tables
+//   primary         main action on a screen (one per area)
+//   brand           the money action on a dashboard (Donate) — the only gradient button
+//   secondary       neutral / alternative action
+//   destructive     irreversible or negative action (reject, delete)
+//   ghost           low-emphasis action inside toolbars, cards and tables
 const BUTTON_VARIANTS = {
-  primary: "bg-blue-600 text-white shadow-xs hover:bg-blue-700 active:bg-blue-800",
-  secondary: "bg-white text-slate-700 border border-slate-300 shadow-xs hover:bg-slate-50 hover:text-slate-900",
-  destructive: "bg-red-600 text-white shadow-xs hover:bg-red-700 active:bg-red-800",
-  ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+  primary: "bg-primary-600 text-white shadow-xs hover:bg-primary-700 active:bg-primary-800 focus-visible:outline-primary-600",
+  brand:
+    "bg-primary-600 bg-linear-to-br from-primary-500 to-primary-600 text-white shadow-sm shadow-primary-600/20 " +
+    "hover:from-primary-600 hover:to-primary-700 focus-visible:outline-primary-600",
+  secondary: "bg-white text-slate-700 border border-slate-300 shadow-xs hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-primary-600",
+  destructive: "bg-red-600 text-white shadow-xs hover:bg-red-700 active:bg-red-800 focus-visible:outline-red-600",
+  ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-primary-600",
 };
 
-// Older variant names used elsewhere in the codebase map onto the four above.
+// Older variant names used elsewhere in the codebase map onto the ones above.
 const LEGACY_VARIANTS = { accent: "primary", outline: "secondary", white: "secondary" };
 
 const BUTTON_SIZES = {
@@ -25,8 +29,10 @@ const BUTTON_SIZES = {
 
 export const buttonClasses = ({ variant = "primary", size = "md", fullWidth = false, className = "" } = {}) =>
   [
-    "inline-flex items-center justify-center rounded-control font-semibold whitespace-nowrap transition-colors",
-    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600",
+    "inline-flex items-center justify-center rounded-control font-semibold whitespace-nowrap",
+    // A short colour change on hover and a slight press on click; no movement for reduced motion.
+    "transition-[color,background-color,border-color,box-shadow,scale] duration-150 active:scale-[0.98] motion-reduce:active:scale-100",
+    "focus-visible:outline-2 focus-visible:outline-offset-2",
     "disabled:opacity-50 disabled:pointer-events-none",
     BUTTON_VARIANTS[LEGACY_VARIANTS[variant] || variant] || BUTTON_VARIANTS.primary,
     BUTTON_SIZES[size] || BUTTON_SIZES.md,
@@ -40,4 +46,4 @@ const CONTROL_BASE =
 
 /** Inputs / selects / textareas. */
 export const inputClasses = ({ invalid = false, className = "" } = {}) =>
-  `${CONTROL_BASE} ${invalid ? "border-red-400 focus:border-red-500 focus:ring-red-500/15" : "border-slate-300 focus:border-blue-500 focus:ring-blue-500/15"} ${className}`;
+  `${CONTROL_BASE} ${invalid ? "border-red-400 focus:border-red-500 focus:ring-red-500/15" : "border-slate-300 focus:border-primary-500 focus:ring-primary-500/15"} ${className}`;

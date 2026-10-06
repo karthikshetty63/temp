@@ -1,15 +1,23 @@
 // VIDYADAAN — rules for NGO payments to schools. Imported by BOTH the React payment form (instant
 // feedback) and the Express API (the authoritative check). Keep it free of browser- and Node-only APIs.
 //
-// Money never passes through VIDYADAAN: the NGO pays the school directly, then records the payment
-// here with proof (challan, receipt or transaction screenshot). The school accepts it once the
-// money has reached its account.
+// An NGO pays for its committed parts in one of two ways:
+//   DIRECT  the NGO pays the school directly, then records the payment here with proof (challan,
+//           receipt or transaction screenshot). The school accepts it once the money reaches its account.
+//   ONLINE  the NGO pays VIDYADAAN through Razorpay Checkout. The parts count as paid as soon as the
+//           server has verified Razorpay's payment signature; VIDYADAAN transfers the money to the school.
 
 import { FUNDING_PARTS } from "./projectRules.js";
 import { DOCUMENT_TYPES } from "./registrationRules.js";
 
 export const PAYMENT_METHODS = ["Bank transfer (NEFT/RTGS/IMPS)", "UPI", "Cheque", "Demand draft", "Cash deposit (challan)"];
 export const PAYMENT_STATUSES = ["SUBMITTED", "ACCEPTED", "REJECTED"];
+export const PAYMENT_CHANNELS = ["DIRECT", "ONLINE"];
+// Shown as the method of an online payment; never offered in the direct payment form.
+export const ONLINE_PAYMENT_METHOD = "Online (Razorpay)";
+// CREATED: the Razorpay order exists and nothing is paid yet (it counts for nothing and isn't listed).
+// REFUND_DUE: Razorpay took the money, but its parts had been paid another way meanwhile.
+export const ONLINE_PAYMENT_STATUSES = ["CREATED", "REFUND_DUE"];
 // Checked with getUploadError() from registrationRules.js (5 MB limit, real file type).
 export const PAYMENT_PROOF_RULE = {
   label: "Payment proof",
@@ -36,6 +44,15 @@ const readParts = (value) => {
   return null;
 };
 
+/** The parts a payment covers, sorted. @returns {{ error?: string, value?: number[] }} */
+const checkParts = (value) => {
+  const parts = readParts(value);
+  if (!parts || parts.length === 0) return { error: "Choose the parts this payment covers." };
+  if (parts.some((p) => !Number.isInteger(p) || p < 1 || p > FUNDING_PARTS)) return { error: `Parts are numbered 1 to ${FUNDING_PARTS}.` };
+  if (new Set(parts).size !== parts.length) return { error: "Choose each part only once." };
+  return { value: [...parts].sort((a, b) => a - b) };
+};
+
 /**
  * Validate what an NGO says about a payment it made (not the proof file).
  * @returns {{ errors: Record<string,string>, values: { parts?: number[], method?: string, reference?: string, paidOn?: string, note?: string } }}
@@ -45,11 +62,9 @@ export const validatePaymentDetails = (data) => {
   const errors = {};
   const values = {};
 
-  const parts = readParts(input.parts);
-  if (!parts || parts.length === 0) errors.parts = "Choose the parts this payment covers.";
-  else if (parts.some((p) => !Number.isInteger(p) || p < 1 || p > FUNDING_PARTS)) errors.parts = `Parts are numbered 1 to ${FUNDING_PARTS}.`;
-  else if (new Set(parts).size !== parts.length) errors.parts = "Choose each part only once.";
-  else values.parts = [...parts].sort((a, b) => a - b);
+  const parts = checkParts(input.parts);
+  if (parts.error) errors.parts = parts.error;
+  else values.parts = parts.value;
 
   if (!PAYMENT_METHODS.includes(input.method)) errors.method = "Choose how you paid.";
   else values.method = input.method;
@@ -77,6 +92,19 @@ export const validatePaymentDetails = (data) => {
   else values.note = input.note.trim();
 
   return { errors, values };
+};
+
+/**
+ * An online payment: which of its parts the NGO pays. Only `parts` may be sent — the amount, the
+ * school and everything else come from the server's records (mass-assignment protection).
+ * @returns {{ errors: Record<string,string>, values: { parts?: number[] } }}
+ */
+export const validateOnlinePayment = (data) => {
+  const input = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const unexpected = Object.keys(input).filter((key) => key !== "parts");
+  if (unexpected.length) return { errors: Object.fromEntries(unexpected.map((key) => [key, "This field is not allowed."])), values: {} };
+  const parts = checkParts(input.parts);
+  return parts.error ? { errors: { parts: parts.error }, values: {} } : { errors: {}, values: { parts: parts.value } };
 };
 
 /** Why a school rejects a payment (the NGO sees this). @returns {{ error?: string, value?: string }} */

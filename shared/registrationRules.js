@@ -323,7 +323,7 @@ export const UPLOAD_RULES = {
     panCard: { label: "PAN Card", hint: "PDF or Image, max 5MB", types: DOCUMENT_TYPES, required: true, profilePath: "documents.panCard", step: 5 },
   },
   donor: {
-    // Needed for 80G tax-exemption receipts, and checked by an admin before the account is activated.
+    // Identity check: an admin looks at it before the account is activated.
     panCard: { label: "PAN Card", hint: "PDF or photo, max 5MB", types: DOCUMENT_TYPES, required: true, profilePath: "documents.panCard", step: 4 },
   },
 };

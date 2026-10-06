@@ -135,7 +135,7 @@ const NGORegister = () => {
         ]}
       />
       <AgreeCheckbox checked={form.agree} onChange={(v) => set("agree", v)} error={errors.agree}>
-        I declare all information is accurate and agree to VIDYADAAN's <span className="font-medium text-slate-900">Terms of Service</span> and <span className="font-medium text-slate-900">Privacy Policy</span>.
+        I declare all information is accurate and agree to VIDYADAAN's <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-900 underline underline-offset-2 hover:text-primary-700">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-900 underline underline-offset-2 hover:text-primary-700">Privacy Policy</a>.
       </AgreeCheckbox>
     </div>,
   ];

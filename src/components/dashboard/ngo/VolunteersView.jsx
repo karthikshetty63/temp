@@ -19,7 +19,7 @@ const VolunteersView = ({ volunteers, loading, error, reload, notice, onAdd, onE
       {!loading && error && (
         <p className="px-5 py-4 text-sm text-slate-500">
           {error}{" "}
-          <button type="button" onClick={reload} className="font-medium text-blue-700 underline underline-offset-2">Try again</button>
+          <button type="button" onClick={reload} className="font-medium text-primary-700 underline underline-offset-2">Try again</button>
         </p>
       )}
       {!loading && !error && volunteers.length === 0 && (
@@ -54,7 +54,7 @@ const VolunteersView = ({ volunteers, loading, error, reload, notice, onAdd, onE
           <div className="relative hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                <tr className="border-b border-slate-200 bg-surface-muted text-left">
                   {["Volunteer", "Role", "Phone", "Working on"].map((h) => (
                     <th key={h} scope="col" className="whitespace-nowrap px-5 py-2.5 text-xs font-medium text-slate-500">{h}</th>
                   ))}

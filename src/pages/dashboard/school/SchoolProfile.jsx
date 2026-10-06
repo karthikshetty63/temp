@@ -103,7 +103,7 @@ const SchoolProfile = () => {
               <Card className="p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-5">
                   <div className="flex items-center gap-4">
-                    <span className="w-20 h-20 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0">
+                    <span className="w-20 h-20 rounded-2xl border border-slate-200 bg-surface-muted overflow-hidden flex items-center justify-center shrink-0">
                       <ProtectedImage
                         fileId={profile.photo?.id}
                         alt={`${profile.schoolName} photograph`}

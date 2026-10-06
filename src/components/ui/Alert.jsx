@@ -1,7 +1,7 @@
 import { LuCircleAlert, LuCircleCheck, LuInfo, LuTriangleAlert } from "react-icons/lu";
 
 const TONES = {
-  info: { box: "bg-blue-50 border-blue-200 text-blue-900", icon: LuInfo, iconColor: "text-blue-600" },
+  info: { box: "bg-primary-50 border-primary-200 text-primary-900", icon: LuInfo, iconColor: "text-primary-600" },
   success: { box: "bg-emerald-50 border-emerald-200 text-emerald-900", icon: LuCircleCheck, iconColor: "text-emerald-600" },
   warning: { box: "bg-amber-50 border-amber-200 text-amber-900", icon: LuTriangleAlert, iconColor: "text-amber-600" },
   danger: { box: "bg-red-50 border-red-200 text-red-800", icon: LuCircleAlert, iconColor: "text-red-600" },

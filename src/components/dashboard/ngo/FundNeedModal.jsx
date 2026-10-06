@@ -7,8 +7,8 @@ import Modal from "../../ui/Modal";
 import { formatINR, freeParts, partsLabel, schoolPlace, sumAmounts } from "./format";
 
 const optionClasses = (selected) =>
-  `rounded-xl border text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
-    selected ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600" : "border-slate-300 bg-white hover:border-slate-400"
+  `rounded-xl border text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 ${
+    selected ? "border-primary-600 bg-primary-50 ring-1 ring-primary-600" : "border-slate-300 bg-white hover:border-slate-400"
   }`;
 
 /**
@@ -80,7 +80,7 @@ const FundNeedModal = ({ need, onClose, onCommitted, onConflict }) => {
             </span>
             <span className="flex items-center gap-2 text-sm font-semibold tabular-nums text-slate-900">
               {formatINR(sumAmounts(free))}
-              {everyFreeChosen && <LuCheck className="w-4 h-4 text-blue-700" aria-hidden="true" />}
+              {everyFreeChosen && <LuCheck className="w-4 h-4 text-primary-700" aria-hidden="true" />}
             </span>
           </button>
         )}
@@ -104,10 +104,10 @@ const FundNeedModal = ({ need, onClose, onCommitted, onConflict }) => {
                 >
                   <span className="flex items-center justify-between text-xs font-medium text-slate-500">
                     Part {p.part}
-                    {on && <LuCheck className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />}
+                    {on && <LuCheck className="w-3.5 h-3.5 text-primary-700" aria-hidden="true" />}
                   </span>
                   <span className={`mt-1 block text-sm font-semibold tabular-nums ${taken ? "text-slate-400" : "text-slate-900"}`}>{formatINR(p.amount)}</span>
-                  <span className={`mt-0.5 block text-xs ${p.takenBy === "you" ? "font-medium text-blue-700" : taken ? "text-slate-400" : "text-slate-500"}`}>{state}</span>
+                  <span className={`mt-0.5 block text-xs ${p.takenBy === "you" ? "font-medium text-primary-700" : taken ? "text-slate-400" : "text-slate-500"}`}>{state}</span>
                 </button>
               );
             })}
@@ -121,9 +121,10 @@ const FundNeedModal = ({ need, onClose, onCommitted, onConflict }) => {
         </p>
 
         <Alert tone="info" title="How funding works">
-          Committing reserves these parts for your NGO. You then pay the school directly (we show you its bank account) and record the payment
-          under Funding with the challan, receipt or transaction screenshot. The school accepts it once the money reaches its account. The
-          school also sees your NGO&rsquo;s name, email and phone number. Until you&rsquo;ve paid, you can withdraw.
+          Committing reserves these parts for your NGO. You then pay under Funding, in either of two ways: online through Razorpay (the
+          parts count as paid as soon as Razorpay confirms it, and VIDYADAAN transfers the full amount to the school), or directly to the
+          school&rsquo;s bank account, recorded with the challan, receipt or transaction screenshot for the school to accept. The school also
+          sees your NGO&rsquo;s name, email and phone number. Until you&rsquo;ve paid, you can withdraw.
         </Alert>
         {error && <Alert tone="danger">{error}</Alert>}
       </div>

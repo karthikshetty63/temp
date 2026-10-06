@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Donation from "../models/Donation.js";
 import Project from "../models/Project.js";
 import { DONATION_MIN, getUnexpectedDonationFields, validateDonation } from "../../shared/donationRules.js";
-import { createRazorpayOrder, getRazorpayKeyId, isRazorpayConfigured, isValidPaymentSignature, razorpayMode } from "../services/razorpay.js";
+import { createRazorpayOrder, getRazorpayKeyId, isRazorpayConfigured, isValidPaymentSignature, razorpayMode, readCheckoutResult } from "../services/razorpay.js";
 import { findFundableProject } from "./approvedProjectController.js";
 
 // Donors pay online through Razorpay (test mode for now):
@@ -17,10 +17,6 @@ import { findFundableProject } from "./approvedProjectController.js";
 // A project's funding: `raised` = NGO payments the school accepted + verified donations, each added
 // exactly once. What donors can still give = budget − the parts NGOs have committed to (paid or not)
 // − what donors have already given, so no one pays for money an NGO has already promised.
-
-const ORDER_ID = /^order_[A-Za-z0-9]+$/;
-const PAYMENT_ID = /^pay_[A-Za-z0-9]+$/;
-const SIGNATURE = /^[a-f0-9]{64}$/;
 
 const formatINR = (n) => `₹${n.toLocaleString("en-IN")}`;
 const badRequest = (res, message, errors) => res.status(400).json({ message, ...(errors ? { errors } : {}) });
@@ -123,13 +119,9 @@ export const createDonation = async (req, res, next) => {
 // — the three values Razorpay Checkout hands the browser after a payment. Safe to send more than once.
 export const verifyDonation = async (req, res, next) => {
     if (!isRazorpayConfigured()) return unavailable(res);
-    const body = req.body && typeof req.body === "object" ? req.body : {};
-    const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = body;
-    const complete =
-        typeof orderId === "string" && ORDER_ID.test(orderId) &&
-        typeof paymentId === "string" && PAYMENT_ID.test(paymentId) &&
-        typeof signature === "string" && SIGNATURE.test(signature);
-    if (!complete) return badRequest(res, "The payment details are missing or incomplete.");
+    const checkout = readCheckoutResult(req.body);
+    if (!checkout) return badRequest(res, "The payment details are missing or incomplete.");
+    const { orderId, paymentId, signature } = checkout;
     if (!mongoose.isValidObjectId(req.params.id)) return donationNotFound(res);
 
     try {

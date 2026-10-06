@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { removePaymentQr, savePaymentQr } from "../controllers/paymentQrController.js";
 import { getMyProfile, removePhoto, replacePhoto, updateSchoolProfile } from "../controllers/profileController.js";
 import requireAuth from "../middleware/authMiddleware.js";
 import requireRole from "../middleware/roleMiddleware.js";
@@ -12,5 +13,7 @@ router.get("/me", getMyProfile);
 router.patch("/school", requireRole("school"), updateSchoolProfile);
 router.put("/photo", requireRole("school"), acceptUploads, replacePhoto);
 router.delete("/photo", requireRole("school"), removePhoto);
+router.put("/payment-qr", requireRole("school"), savePaymentQr);
+router.delete("/payment-qr", requireRole("school"), removePaymentQr);
 
 export default router;

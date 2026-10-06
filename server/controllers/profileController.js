@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import UploadedFile from "../models/UploadedFile.js";
 import { SCHOOL_FACILITY_FIELDS, UPLOAD_RULES, validateSchoolProfileUpdate } from "../../shared/registrationRules.js";
 import { PROFILE_MODELS } from "../services/profileModels.js";
+import { paymentQrToClient } from "./paymentQrController.js";
 import { deleteUploadedFiles, fileSummary, storeUploads, validateUploads } from "../services/uploadService.js";
 
 const PHOTO_FIELD = "schoolPhoto";
@@ -18,7 +19,10 @@ const profileToClient = async (user, profile) => {
     for (const internal of ["_id", "__v", "userId"]) delete result[internal];
     if ("bankAccount" in result) result.bankAccount = maskAccountNumber(result.bankAccount);
     // Always present for schools (null when there is no photo) so the UI gets one consistent shape.
-    if (user.role === "school") result.photo = result.photo ? byId.get(result.photo.toString()) || null : null;
+    if (user.role === "school") {
+        result.photo = result.photo ? byId.get(result.photo.toString()) || null : null;
+        result.paymentQr = paymentQrToClient(profile.paymentQr);
+    }
     if (result.documents) {
         result.documents = Object.fromEntries(
             Object.entries(result.documents).map(([key, id]) => [key, id ? byId.get(id.toString()) || null : null])

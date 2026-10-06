@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { approveAccount, getAccount, listAccounts, rejectAccount } from "../controllers/adminController.js";
+import { approvePaymentQr, listPaymentQrs, rejectPaymentQr } from "../controllers/paymentQrController.js";
 import { approveProject, getProjectForReview, listProjectsForReview, rejectProject } from "../controllers/projectReviewController.js";
 import requireAuth from "../middleware/authMiddleware.js";
 import requireRole from "../middleware/roleMiddleware.js";
@@ -18,5 +19,9 @@ router.get("/projects", listProjectsForReview);
 router.get("/projects/:id", getProjectForReview);
 router.patch("/projects/:id/approve", approveProject);
 router.patch("/projects/:id/reject", rejectProject);
+
+router.get("/payment-qrs", listPaymentQrs);
+router.patch("/payment-qrs/:schoolId/approve", approvePaymentQr);
+router.patch("/payment-qrs/:schoolId/reject", rejectPaymentQr);
 
 export default router;

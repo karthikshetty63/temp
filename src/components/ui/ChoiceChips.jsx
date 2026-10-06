@@ -12,7 +12,7 @@ const ChoiceChips = ({ label, options, value = [], onChange, error }) => (
             aria-pressed={selected}
             onClick={() => onChange(selected ? value.filter((v) => v !== option) : [...value, option])}
             className={`h-8 px-3 rounded-full border text-sm transition-colors ${
-              selected ? "bg-blue-50 border-blue-300 text-blue-800 font-medium" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+              selected ? "bg-primary-50 border-primary-300 text-primary-800 font-medium" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
             }`}
           >
             {option}

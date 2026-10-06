@@ -1,10 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "../pages/public/Home";
-
-import CommunitySupport from "../pages/public/CommunitySupport";
-import ProjectDetails from "../pages/public/ProjectDetails";
-
-import DonorImpactPage from "../pages/public/DonorImpactPage";
 import RoleSelector from "../pages/auth/RoleSelector";
 import SchoolLogin from "../pages/auth/SchoolLogin";
 import NGOLogin from "../pages/auth/NGOLogin";
@@ -31,13 +26,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Landing & Transparency Pages */}
+        {/* Public landing page */}
         <Route path="/" element={<Home />} />
-
-        <Route path="/community-support" element={<CommunitySupport />} />
-        <Route path="/project/:id" element={<ProjectDetails />} />
-
-        <Route path="/impact" element={<DonorImpactPage />} />
 
         {/* Auth — Login */}
         <Route path="/login" element={<RoleSelector />} />

@@ -1,24 +1,25 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  LuBadgeCheck, LuCalendarDays, LuCalendarPlus, LuChartBar, LuCircleCheck, LuClock, LuFilePen, LuFileText, LuFolderKanban,
-  LuHeartHandshake, LuPencil, LuPlus, LuSchool, LuTrendingUp, LuUsers, LuWallet,
+  LuBadgeCheck, LuCalendarDays, LuCalendarPlus, LuCircleCheck, LuClock, LuFileChartColumn, LuFilePen, LuFolderKanban,
+  LuGraduationCap, LuHandCoins, LuHeartHandshake, LuMapPin, LuPencil, LuPlus, LuSchool, LuTrendingUp, LuUsers,
 } from "react-icons/lu";
+import DashboardHero, { HeroChip, HeroTile } from "../../../components/dashboard/DashboardHero";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import ProjectStatusBadge from "../../../components/dashboard/ProjectStatusBadge";
+import PaymentQrCard from "../../../components/dashboard/school/PaymentQrCard";
 import ProjectFormModal from "../../../components/dashboard/school/ProjectFormModal";
 import { groupCommitments, groupStatus } from "../../../components/dashboard/school/commitments";
 import Alert from "../../../components/ui/Alert";
-import Badge, { StatusBadge } from "../../../components/ui/Badge";
+import { StatusBadge } from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
 import Card, { CardHeader } from "../../../components/ui/Card";
 import EmptyState from "../../../components/ui/EmptyState";
-import PageHeader from "../../../components/ui/PageHeader";
 import ProgressBar from "../../../components/ui/ProgressBar";
 import ProtectedImage from "../../../components/ui/ProtectedImage";
 import StatCard from "../../../components/ui/StatCard";
 import { buttonClasses } from "../../../components/ui/classes";
-import { PROJECT_CATEGORY_ICONS } from "../../../constants/infrastructureCategories";
+import CategoryIcon from "../../../components/ui/CategoryIcon";
 import { useAuth } from "../../../context/AuthContext";
 import useMyProfile, { toSchoolDisplayProfile } from "../../../hooks/useMyProfile";
 import useMyProjects from "../../../hooks/useMyProjects";
@@ -39,7 +40,7 @@ const REVIEW_UPDATES = {
 };
 
 const ViewAll = ({ to, children = "View all" }) => (
-  <Link to={to} className="text-sm font-medium text-blue-700 hover:underline">{children}</Link>
+  <Link to={to} className="text-sm font-medium text-primary-700 hover:underline">{children}</Link>
 );
 
 const formatINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
@@ -48,7 +49,7 @@ const formatWhen = (iso) => new Date(iso).toLocaleDateString("en-IN", { day: "nu
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { profile: myProfile } = useMyProfile();
+  const { profile: myProfile, loading: profileLoading, setProfile } = useMyProfile();
   const profile = toSchoolDisplayProfile(myProfile, NO_PROFILE);
   const { projects, loading, error, reload, upsert } = useMyProjects();
   const { commitments, loading: commitmentsLoading, error: commitmentsError } = useSchoolCommitments();
@@ -75,14 +76,14 @@ const Dashboard = () => {
   const ready = !loading && !error;
 
   const summaryCards = [
-    { label: "Total projects", value: stats.total, icon: LuFolderKanban, hint: stats.critical ? `${stats.critical} critical priority` : undefined },
-    { label: "Waiting for review", value: stats.pending, icon: LuClock },
-    { label: "Approved", value: stats.approved, icon: LuBadgeCheck },
-    { label: "Changes requested", value: stats.rejected, icon: LuFilePen, hint: stats.rejected ? "Edit and resubmit" : undefined },
-    { label: "In progress", value: stats.inProgress, icon: LuTrendingUp },
-    { label: "Completed", value: stats.completed, icon: LuCircleCheck },
-    { label: "Students benefited", value: stats.students.toLocaleString("en-IN"), icon: LuUsers, hint: "Across approved projects" },
-    { label: "Funds raised", value: formatINR(stats.raised), icon: LuWallet, hint: stats.needed ? `of ${formatINR(stats.needed)} needed` : undefined },
+    { label: "Total projects", value: stats.total, icon: LuFolderKanban, tone: "indigo", hint: stats.critical ? `${stats.critical} critical priority` : undefined },
+    { label: "Waiting for review", value: stats.pending, icon: LuClock, tone: "amber" },
+    { label: "Approved", value: stats.approved, icon: LuBadgeCheck, tone: "emerald" },
+    { label: "Changes requested", value: stats.rejected, icon: LuFilePen, tone: "rose", hint: stats.rejected ? "Edit and resubmit" : undefined },
+    { label: "In progress", value: stats.inProgress, icon: LuTrendingUp, tone: "sky" },
+    { label: "Completed", value: stats.completed, icon: LuCircleCheck, tone: "emerald" },
+    { label: "Students benefited", value: stats.students.toLocaleString("en-IN"), icon: LuGraduationCap, tone: "violet", hint: "Across approved projects" },
+    { label: "Funds raised", value: formatINR(stats.raised), icon: LuHandCoins, tone: "indigo", hint: stats.needed ? `of ${formatINR(stats.needed)} needed` : undefined },
   ];
 
   const recentProjects = projects.slice(0, 3);
@@ -96,11 +97,18 @@ const Dashboard = () => {
     { icon: LuCalendarPlus, label: "School events", desc: "Plan an event and request support", to: "/dashboard/school/events" },
     { icon: LuTrendingUp, label: "Project progress", desc: "Details and updates for each project", to: "/dashboard/school/progress" },
     { icon: LuSchool, label: "School profile", desc: "Update school details", to: "/dashboard/school/profile" },
-    { icon: LuFileText, label: "Reports", desc: "Donation and impact reports", to: "/dashboard/school/reports" },
-    { icon: LuChartBar, label: "All projects", desc: "Complete project list", to: "/dashboard/school/projects" },
+    { icon: LuFileChartColumn, label: "Reports", desc: "Donation and impact reports", to: "/dashboard/school/reports" },
+    { icon: LuFolderKanban, label: "All projects", desc: "Complete project list", to: "/dashboard/school/projects" },
   ];
 
   const newProjectButton = <Button icon={LuPlus} onClick={() => setIsNeedModalOpen(true)}>New project</Button>;
+
+  let summary = "Create infrastructure projects, follow their review and funding, and check payments from NGOs.";
+  if (ready && stats.pending) {
+    summary = `${stats.pending} ${stats.pending === 1 ? "project is" : "projects are"} waiting for review by the VIDYADAAN team.`;
+  } else if (ready && stats.approved) {
+    summary = `${stats.approved} approved ${stats.approved === 1 ? "project has" : "projects have"} raised ${formatINR(stats.raised)} of ${formatINR(stats.needed)} so far.`;
+  }
 
   return (
     <DashboardLayout
@@ -112,26 +120,28 @@ const Dashboard = () => {
     >
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-          <PageHeader
+          <DashboardHero
             leading={
-              <span className="w-14 h-14 rounded-control border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
+              <HeroTile>
                 <ProtectedImage
                   fileId={profile.photo?.id}
                   alt={`${profile.name} photograph`}
                   className="w-full h-full object-cover"
-                  fallback={<LuSchool className="w-6 h-6 text-slate-400" aria-hidden="true" />}
+                  fallback={<LuSchool className="w-6 h-6 text-sky-600" aria-hidden="true" />}
                 />
-              </span>
+              </HeroTile>
             }
+            eyebrow="School portal"
             title={profile.name || "Your school"}
+            description={summary}
             meta={
               <>
                 {/* Only accounts the admin has approved can sign in, so this is always true here. */}
-                <Badge tone="success" icon={LuCircleCheck}>Verified school</Badge>
-                {profile.udise && <span>UDISE {profile.udise}</span>}
-                {profile.district && <span>{profile.district}</span>}
+                <HeroChip icon={LuCircleCheck}>Verified school</HeroChip>
+                {profile.udise && <HeroChip>UDISE {profile.udise}</HeroChip>}
+                {profile.district && <HeroChip icon={LuMapPin}>{profile.district}</HeroChip>}
                 {(myProfile?.students != null || myProfile?.teachers != null) && (
-                  <span>{profile.studentsCount} students · {profile.teachersCount} teachers</span>
+                  <HeroChip icon={LuUsers}>{profile.studentsCount} students · {profile.teachersCount} teachers</HeroChip>
                 )}
               </>
             }
@@ -167,6 +177,7 @@ const Dashboard = () => {
                   label={card.label}
                   value={ready ? card.value : "–"}
                   icon={card.icon}
+                  tone={card.tone}
                   hint={ready ? card.hint : undefined}
                 />
               ))}
@@ -175,20 +186,22 @@ const Dashboard = () => {
 
           <Card>
             <CardHeader title="Quick actions" />
-            <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-px bg-slate-200 rounded-b-2xl overflow-hidden">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-px bg-surface-divider rounded-b-2xl overflow-hidden">
               {quickActions.map(({ icon: Icon, label, desc, onClick, to }) => {
                 const content = (
                   <>
-                    <span className="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                    <span className="w-9 h-9 rounded-xl bg-primary-50 text-primary-600 ring-1 ring-inset ring-primary-100 flex items-center justify-center shrink-0 transition-colors duration-150 group-hover:bg-primary-100">
                       <Icon className="w-[18px] h-[18px]" aria-hidden="true" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium text-slate-900">{label}</span>
+                      <span className="block text-sm font-semibold text-slate-900">{label}</span>
                       <span className="block text-xs text-slate-500">{desc}</span>
                     </span>
                   </>
                 );
-                const cls = "flex items-center gap-3 w-full h-full px-5 py-4 bg-white text-left hover:bg-slate-50 transition-colors";
+                // The list clips its corners, so the focus ring is drawn inside each cell.
+                const cls =
+                  "group flex items-center gap-3 w-full h-full px-5 py-4 bg-surface text-left transition-colors duration-150 hover:bg-surface-muted focus-visible:outline-offset-[-2px]";
                 return (
                   <li key={label}>
                     {to ? <Link to={to} className={cls}>{content}</Link> : <button type="button" onClick={onClick} className={cls}>{content}</button>}
@@ -223,9 +236,9 @@ const Dashboard = () => {
                     const funded = getFundingPercentage(proj.budget, proj.raised);
                     return (
                       <li key={proj.id}>
-                        <Link to={`/dashboard/school/progress?project=${proj.id}`} className="flex gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-                          <span className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-xl shrink-0" aria-hidden="true">
-                            {PROJECT_CATEGORY_ICONS[proj.category] || "📦"}
+                        <Link to={`/dashboard/school/progress?project=${proj.id}`} className="flex gap-4 px-5 py-4 hover:bg-surface-muted transition-colors">
+                          <span className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+                            <CategoryIcon category={proj.category} className="w-6 h-6" />
                           </span>
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -274,7 +287,7 @@ const Dashboard = () => {
                     const update = REVIEW_UPDATES[project.reviewStatus];
                     return (
                       <li key={project.id}>
-                        <Link to={`/dashboard/school/progress?project=${project.id}`} className="flex gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors">
+                        <Link to={`/dashboard/school/progress?project=${project.id}`} className="flex gap-3 px-5 py-3.5 hover:bg-surface-muted transition-colors">
                           <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${update.dot}`} aria-hidden="true" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-slate-900">{update.label}</p>
@@ -303,13 +316,21 @@ const Dashboard = () => {
             />
           </Card>
 
+          <PaymentQrCard
+            paymentQr={myProfile?.paymentQr || null}
+            verifiedUpiId={myProfile?.upi || ""}
+            loading={profileLoading}
+            onChange={(paymentQr) => setProfile((p) => (p ? { ...p, paymentQr } : p))}
+          />
+
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <Card>
               <CardHeader title="Latest donations" />
+              {/* Donor donations are counted in "Funds raised", but there is no list of them to show yet. */}
               <EmptyState
-                icon={LuWallet}
-                title="No donations yet"
-                description="Donations to your approved projects will appear here once online payments are live."
+                icon={LuHandCoins}
+                title="Donation list coming soon"
+                description="Confirmed donor donations are already counted in “Funds raised” above. A list of them will appear here."
                 className="py-8"
               />
             </Card>
@@ -333,8 +354,8 @@ const Dashboard = () => {
                 <ul className="divide-y divide-slate-200">
                   {ngoActivity.slice(0, 4).map((a) => (
                     <li key={a.key}>
-                      <Link to={`/dashboard/school/progress?project=${a.projectId}`} className="flex gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors">
-                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${a.received === a.parts.length ? "bg-emerald-500" : a.toCheck ? "bg-amber-500" : "bg-blue-500"}`} aria-hidden="true" />
+                      <Link to={`/dashboard/school/progress?project=${a.projectId}`} className="flex gap-3 px-5 py-3.5 hover:bg-surface-muted transition-colors">
+                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${a.received === a.parts.length ? "bg-emerald-500" : a.toCheck ? "bg-amber-500" : "bg-primary-500"}`} aria-hidden="true" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-900">{a.ngo.name} committed {formatINR(a.amount)}</p>
                           <p className="mt-0.5 text-xs text-slate-600 truncate">

@@ -23,3 +23,15 @@ export const approveProject = (id) => apiRequest(`/api/admin/projects/${encodeUR
 
 export const rejectProject = (id, reason) =>
     apiRequest(`/api/admin/projects/${encodeURIComponent(id)}/reject`, { method: "PATCH", body: { reason } });
+
+/* ─── School UPI QR review ───────────────────────────────── */
+
+/** status: PENDING | ACTIVE | REJECTED → { qrs, counts } */
+export const listPaymentQrs = (status = "PENDING") => apiRequest(`/api/admin/payment-qrs?status=${encodeURIComponent(status)}`);
+
+/** `link` is the QR the admin reviewed; nothing changes if the school has replaced it since. */
+export const approvePaymentQr = (schoolId, link) =>
+    apiRequest(`/api/admin/payment-qrs/${encodeURIComponent(schoolId)}/approve`, { method: "PATCH", body: { link } });
+
+export const rejectPaymentQr = (schoolId, link, reason) =>
+    apiRequest(`/api/admin/payment-qrs/${encodeURIComponent(schoolId)}/reject`, { method: "PATCH", body: { link, reason } });

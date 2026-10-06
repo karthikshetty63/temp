@@ -27,7 +27,22 @@ export const submitPayment = (projectId, { parts, method, reference, paidOn, not
   return apiRequest(`/api/projects/${encodeURIComponent(projectId)}/payments`, { method: "POST", body: form });
 };
 
-/** Every payment the signed-in NGO has recorded, newest first. */
+/**
+ * Pay committed parts online: the server prices the parts and creates the Razorpay order. Only the
+ * parts are sent. Resolves with { payment: { id, parts, amount }, checkout } (checkout: what Razorpay
+ * Checkout needs, including the public key ID).
+ */
+export const startOnlinePayment = (projectId, parts) =>
+  apiRequest(`/api/projects/${encodeURIComponent(projectId)}/payments/online`, { method: "POST", body: { parts } });
+
+/** Ask the server to verify an online payment with the three values Razorpay returned. Safe to repeat. */
+export const verifyOnlinePayment = (paymentId, { razorpay_order_id, razorpay_payment_id, razorpay_signature }) =>
+  apiRequest(`/api/projects/payments/${encodeURIComponent(paymentId)}/verify`, {
+    method: "POST",
+    body: { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+  });
+
+/** Every payment the signed-in NGO has made or recorded, newest first. */
 export const listMyPayments = () => apiRequest("/api/projects/payments");
 
 // ─── School ──────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ const Detail = ({ label, children }) => (
 
 /**
  * Everything an NGO can see about one approved need. `onFund` opens the funding window;
- * `onRecordPayment` the window for recording a payment for the NGO's unpaid parts.
+ * `onRecordPayment` the window for paying (online, or recording a direct payment) for the NGO's unpaid parts.
  */
 const NeedDetailsModal = ({ need, onClose, onFund, onRecordPayment }) => {
   const place = schoolPlace(need.school);
@@ -30,7 +30,7 @@ const NeedDetailsModal = ({ need, onClose, onFund, onRecordPayment }) => {
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Close</Button>
-          {canPay && onRecordPayment && <Button variant="secondary" onClick={() => onRecordPayment(need)}>Record payment</Button>}
+          {canPay && onRecordPayment && <Button variant="secondary" onClick={() => onRecordPayment(need)}>Make payment</Button>}
           {canFund && onFund && <Button onClick={() => onFund(need)}>Fund this need</Button>}
         </>
       }

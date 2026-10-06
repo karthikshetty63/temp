@@ -13,7 +13,7 @@ const Stepper = ({ steps, current }) => {
           Step {current + 1} of {steps.length} <span className="text-slate-400">·</span> {steps[current]}
         </p>
         <div className="mt-2 h-1.5 rounded-full bg-slate-200 overflow-hidden" aria-hidden="true">
-          <div className="h-full bg-blue-600 rounded-full transition-[width]" style={{ width: `${pct}%` }} />
+          <div className="h-full bg-primary-600 rounded-full transition-[width]" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
@@ -26,14 +26,14 @@ const Stepper = ({ steps, current }) => {
               <div className="flex flex-col items-center gap-1.5 shrink-0">
                 <span
                   className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-                    done ? "bg-blue-600 text-white" : active ? "bg-white text-blue-700 ring-2 ring-blue-600" : "bg-white text-slate-500 ring-1 ring-slate-300"
+                    done ? "bg-primary-600 text-white" : active ? "bg-white text-primary-700 ring-2 ring-primary-600" : "bg-white text-slate-500 ring-1 ring-slate-300"
                   }`}
                 >
                   {done ? <LuCheck className="w-4 h-4" aria-label="Completed" /> : i + 1}
                 </span>
                 <span className={`text-xs whitespace-nowrap ${active ? "font-semibold text-slate-900" : "text-slate-500"}`}>{label}</span>
               </div>
-              {i < steps.length - 1 && <span className={`flex-1 h-px mx-2 mb-5 ${done ? "bg-blue-600" : "bg-slate-200"}`} aria-hidden="true" />}
+              {i < steps.length - 1 && <span className={`flex-1 h-px mx-2 mb-5 ${done ? "bg-primary-600" : "bg-slate-200"}`} aria-hidden="true" />}
             </li>
           );
         })}

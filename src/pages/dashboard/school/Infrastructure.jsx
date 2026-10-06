@@ -12,7 +12,8 @@ import EmptyState from "../../../components/ui/EmptyState";
 import PageHeader from "../../../components/ui/PageHeader";
 import ProgressBar from "../../../components/ui/ProgressBar";
 import SegmentedControl from "../../../components/ui/SegmentedControl";
-import { INFRASTRUCTURE_CATEGORIES, PROJECT_CATEGORY_ICONS } from "../../../constants/infrastructureCategories";
+import CategoryIcon from "../../../components/ui/CategoryIcon";
+import { INFRASTRUCTURE_CATEGORIES } from "../../../constants/infrastructureCategories";
 import { useAuth } from "../../../context/AuthContext";
 import useMyProjects from "../../../hooks/useMyProjects";
 import { getFundingPercentage } from "../../../utils/funding";
@@ -71,10 +72,10 @@ const Infrastructure = () => {
                   <li
                     key={id}
                     className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-sm ${
-                      hasProject ? "border-blue-200 bg-blue-50 text-blue-800 font-medium" : "border-slate-200 bg-white text-slate-500"
+                      hasProject ? "border-primary-200 bg-primary-50 text-primary-800 font-medium" : "border-slate-200 bg-white text-slate-500"
                     }`}
                   >
-                    <span aria-hidden="true">{PROJECT_CATEGORY_ICONS[id]}</span>
+                    <CategoryIcon category={id} className="w-4 h-4 shrink-0" />
                     <span className="min-w-0 truncate" title={id}>{schoolLabel}</span>
                     {hasProject && <span className="sr-only">(active request)</span>}
                   </li>
@@ -106,9 +107,9 @@ const Infrastructure = () => {
               <ul className="divide-y divide-slate-200">
                 {displayed.map((proj) => (
                   <li key={proj.id}>
-                    <Link to={`/dashboard/school/progress?project=${proj.id}`} className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-                      <span className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
-                        {PROJECT_CATEGORY_ICONS[proj.category] || "📦"}
+                    <Link to={`/dashboard/school/progress?project=${proj.id}`} className="flex items-center gap-4 px-5 py-4 hover:bg-surface-muted transition-colors">
+                      <span className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+                        <CategoryIcon category={proj.category} />
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

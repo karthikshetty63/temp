@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { LuFilePen, LuFolderKanban } from "react-icons/lu";
 import Alert from "../../ui/Alert";
 import Button from "../../ui/Button";
 import FormField, { Input, Select, Textarea } from "../../ui/FormField";
@@ -40,6 +41,17 @@ const fromProject = (p) => ({
   materials: p.materials.join(", "),
   status: p.status,
 });
+
+// A titled group of fields on the portal's box colour (sky blue in the school portal); inputs stay white.
+const FieldGroup = ({ title, children }) => {
+  const headingId = useId();
+  return (
+    <div role="group" aria-labelledby={headingId} className="space-y-4 rounded-2xl border border-surface-line bg-surface p-4 sm:p-5">
+      <h3 id={headingId} className="text-xs font-semibold uppercase tracking-[0.08em] text-sky-700">{title}</h3>
+      {children}
+    </div>
+  );
+};
 
 /**
  * Create a project, or edit one (pass `project`). Checks with the same rules as the server,
@@ -95,6 +107,7 @@ const ProjectFormModal = ({ open, onClose, onSaved, project = null }) => {
       open={open}
       onClose={onClose}
       size="lg"
+      icon={isEdit ? LuFilePen : LuFolderKanban}
       title={isResubmit ? "Edit and resubmit" : isEdit ? "Edit project" : "New project"}
       description={
         isResubmit
@@ -118,68 +131,74 @@ const ProjectFormModal = ({ open, onClose, onSaved, project = null }) => {
         )}
         {error && <Alert tone="danger">{error}</Alert>}
 
-        <FormField label="Project title" required error={errors.title}>
-          {(f) => <Input {...f} value={form.title} onChange={set("title")} placeholder="e.g. Smart classroom for Grades 3–5" maxLength={120} />}
-        </FormField>
+        <FieldGroup title="About the need">
+          <FormField label="Project title" required error={errors.title}>
+            {(f) => <Input {...f} value={form.title} onChange={set("title")} placeholder="e.g. Smart classroom for Grades 3–5" maxLength={120} />}
+          </FormField>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <FormField label="Category" required error={errors.category}>
-            {(f) => (
-              <Select {...f} value={form.category} onChange={set("category")}>
-                <option value="">Select a category</option>
-                {PROJECT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </Select>
-            )}
-          </FormField>
-          <FormField label="Priority" required error={errors.priority} hint={form.priority === "Critical" ? "Use Critical only for a risk to students' safety or health." : undefined}>
-            {(f) => (
-              <Select {...f} value={form.priority} onChange={set("priority")}>
-                <option value="">Select a priority</option>
-                {PROJECT_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-              </Select>
-            )}
-          </FormField>
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Category" required error={errors.category}>
+              {(f) => (
+                <Select {...f} value={form.category} onChange={set("category")}>
+                  <option value="">Select a category</option>
+                  {PROJECT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
+              )}
+            </FormField>
+            <FormField label="Priority" required error={errors.priority} hint={form.priority === "Critical" ? "Use Critical only for a risk to students' safety or health." : undefined}>
+              {(f) => (
+                <Select {...f} value={form.priority} onChange={set("priority")}>
+                  <option value="">Select a priority</option>
+                  {PROJECT_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                </Select>
+              )}
+            </FormField>
+          </div>
 
-        <FormField label="What's the problem, and how will this help?" required error={errors.problem} hint="The current condition, why it matters, and how students will benefit. Donors read this first.">
-          {(f) => <Textarea {...f} rows={4} value={form.problem} onChange={set("problem")} maxLength={2000} placeholder="e.g. The roof leaks in 3 classrooms every monsoon, so 120 students lose teaching days…" />}
-        </FormField>
+          <FormField label="What's the problem, and how will this help?" required error={errors.problem} hint="The current condition, why it matters, and how students will benefit. Donors read this first.">
+            {(f) => <Textarea {...f} rows={4} value={form.problem} onChange={set("problem")} maxLength={2000} placeholder="e.g. The roof leaks in 3 classrooms every monsoon, so 120 students lose teaching days…" />}
+          </FormField>
+        </FieldGroup>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <FormField
-            label="Estimated budget (₹)"
-            required
-            error={errors.budget}
-            hint={budgetLocked ? "Fixed: NGOs have committed to fund parts of it." : `₹${PROJECT_BUDGET_MIN.toLocaleString("en-IN")} – ₹${PROJECT_BUDGET_MAX.toLocaleString("en-IN")}`}
-          >
-            {(f) => <Input {...f} inputMode="numeric" value={form.budget} onChange={set("budget")} placeholder="120000" disabled={budgetLocked} />}
-          </FormField>
-          <FormField label="Students benefited" required error={errors.studentsBenefited}>
-            {(f) => <Input {...f} inputMode="numeric" value={form.studentsBenefited} onChange={set("studentsBenefited")} placeholder="240" />}
-          </FormField>
-          <FormField label="Expected completion" required error={errors.expectedCompletion}>
-            {(f) => <Input {...f} type="date" min={isEdit ? undefined : today()} value={form.expectedCompletion} onChange={set("expectedCompletion")} />}
-          </FormField>
-        </div>
+        <FieldGroup title="Budget and timeline">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <FormField
+              label="Estimated budget (₹)"
+              required
+              error={errors.budget}
+              hint={budgetLocked ? "Fixed: NGOs have committed to fund parts of it." : `₹${PROJECT_BUDGET_MIN.toLocaleString("en-IN")} – ₹${PROJECT_BUDGET_MAX.toLocaleString("en-IN")}`}
+            >
+              {(f) => <Input {...f} inputMode="numeric" value={form.budget} onChange={set("budget")} placeholder="120000" disabled={budgetLocked} />}
+            </FormField>
+            <FormField label="Students benefited" required error={errors.studentsBenefited}>
+              {(f) => <Input {...f} inputMode="numeric" value={form.studentsBenefited} onChange={set("studentsBenefited")} placeholder="240" />}
+            </FormField>
+            <FormField label="Expected completion" required error={errors.expectedCompletion}>
+              {(f) => <Input {...f} type="date" min={isEdit ? undefined : today()} value={form.expectedCompletion} onChange={set("expectedCompletion")} />}
+            </FormField>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <FormField label="Location" error={errors.location} hint={isEdit ? undefined : "Leave empty to use your school's district."}>
-            {(f) => <Input {...f} value={form.location} onChange={set("location")} maxLength={150} placeholder="e.g. Block B, Honnali" />}
-          </FormField>
-          <FormField label="Required materials" error={errors.materials} hint="Separate items with commas.">
-            {(f) => <Input {...f} value={form.materials} onChange={set("materials")} placeholder="e.g. Smart TV, dual desks, wiring kit" />}
-          </FormField>
-        </div>
+          {isEdit && canSetStatus && (
+            <FormField label="Status" error={errors.status} className="sm:max-w-xs">
+              {(f) => (
+                <Select {...f} value={form.status} onChange={set("status")}>
+                  {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              )}
+            </FormField>
+          )}
+        </FieldGroup>
 
-        {isEdit && canSetStatus && (
-          <FormField label="Status" error={errors.status} className="sm:max-w-xs">
-            {(f) => (
-              <Select {...f} value={form.status} onChange={set("status")}>
-                {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </Select>
-            )}
-          </FormField>
-        )}
+        <FieldGroup title="Location and materials">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Location" error={errors.location} hint={isEdit ? undefined : "Leave empty to use your school's district."}>
+              {(f) => <Input {...f} value={form.location} onChange={set("location")} maxLength={150} placeholder="e.g. Block B, Honnali" />}
+            </FormField>
+            <FormField label="Required materials" error={errors.materials} hint="Separate items with commas.">
+              {(f) => <Input {...f} value={form.materials} onChange={set("materials")} placeholder="e.g. Smart TV, dual desks, wiring kit" />}
+            </FormField>
+          </div>
+        </FieldGroup>
       </form>
     </Modal>
   );

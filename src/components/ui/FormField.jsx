@@ -38,7 +38,7 @@ const FormField = ({ label, required = false, hint, error, className = "", child
       </label>
       {children({ id, invalid: Boolean(error), "aria-describedby": describedBy, "aria-required": required || undefined })}
       {hint && !error && <p id={hintId} className="mt-1.5 text-xs text-slate-500">{hint}</p>}
-      {error && <p id={errorId} className="mt-1.5 text-xs font-medium text-red-600">{error}</p>}
+      {error && <p id={errorId} className="mt-1.5 text-xs font-medium text-red-700">{error}</p>}
     </div>
   );
 };

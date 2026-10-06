@@ -1,4 +1,4 @@
-import { LuArrowRight, LuDownload, LuFileText, LuFolderKanban, LuInfo, LuLightbulb, LuTrophy } from "react-icons/lu";
+import { LuArrowRight, LuDownload, LuFileChartColumn, LuFolderKanban, LuInfo } from "react-icons/lu";
 import { Link } from "react-router-dom";
 import BarList from "../../../components/charts/BarList";
 import Meter from "../../../components/charts/Meter";
@@ -39,13 +39,13 @@ const BeforeAfterRow = ({ title, before, beforeCaption, after, afterCaption, met
   <div>
     <p className="text-sm font-medium text-slate-900">{title}</p>
     <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-2 sm:gap-3">
-      <div className="rounded-xl bg-slate-50 px-3 sm:px-4 py-3">
+      <div className="rounded-xl bg-surface-muted px-3 sm:px-4 py-3">
         <p className="text-xs text-slate-500">Before · {beforeCaption}</p>
         <p className="mt-0.5 text-lg sm:text-xl font-semibold text-slate-900 truncate">{before}</p>
       </div>
       <span className="self-center text-slate-400" aria-hidden="true"><LuArrowRight className="w-4 h-4" /></span>
-      <div className="rounded-xl bg-blue-50 px-3 sm:px-4 py-3">
-        <p className="text-xs text-blue-800">After · {afterCaption}</p>
+      <div className="rounded-xl bg-primary-50 px-3 sm:px-4 py-3">
+        <p className="text-xs text-primary-800">After · {afterCaption}</p>
         <p className="mt-0.5 text-lg sm:text-xl font-semibold text-slate-900 truncate">{after}</p>
       </div>
     </div>
@@ -145,13 +145,13 @@ const Reports = () => {
                     formatValue={formatStudentsPerLakh}
                     label="Projects ranked by students helped per ₹1 lakh"
                     emphasizeFirst
-                    badge={<Badge tone="info" icon={LuTrophy}>Best value</Badge>}
+                    badge={<Badge tone="info">Best value</Badge>}
                     summary={(p) => `${p.label} helps ${formatStudentsPerLakh(p.value)} for every ₹1 lakh.`}
                   />
                   {impactRanking.length > 1 && (
                     <div className="mt-auto px-5 pb-5 pt-2">
-                      <p className="flex gap-2.5 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                        <LuLightbulb className="w-4 h-4 mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
+                      <p className="flex gap-2.5 rounded-xl bg-surface-muted px-4 py-3 text-sm text-slate-700">
+                        <LuInfo className="w-4 h-4 mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
                         <span>
                           {bestRatio >= 1.2 ? (
                             <>
@@ -190,7 +190,7 @@ const Reports = () => {
                         meter={<Meter label="Students reached" value={funding.studentsReached} max={funding.studentsPlanned} caption={(pct) => `${pct}% reached, counted when a project is completed`} />}
                       />
                       {funding.raised === 0 && (
-                        <p className="flex gap-2.5 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        <p className="flex gap-2.5 rounded-xl bg-surface-muted px-4 py-3 text-xs text-slate-600">
                           <LuInfo className="w-4 h-4 shrink-0 text-slate-500" aria-hidden="true" />
                           No donor or NGO funding has been recorded yet. This updates on its own as real funding arrives and projects are completed.
                         </p>
@@ -219,7 +219,7 @@ const Reports = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-left">
+                    <tr className="bg-surface-muted border-b border-slate-200 text-left">
                       {COLUMNS.map((h) => (
                         <th key={h} scope="col" className="px-5 py-2.5 text-xs font-medium text-slate-500 whitespace-nowrap">{h}</th>
                       ))}
@@ -227,7 +227,7 @@ const Reports = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {projects.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50">
+                      <tr key={p.id} className="hover:bg-surface-muted">
                         <td className="px-5 py-3 font-medium text-slate-900 min-w-48">
                           <Link to={`/dashboard/school/progress?project=${p.id}`} className="hover:underline">{p.title}</Link>
                         </td>
@@ -249,7 +249,7 @@ const Reports = () => {
 
           <Card>
             <EmptyState
-              icon={LuFileText}
+              icon={LuFileChartColumn}
               title="Donation, impact and completion reports"
               description="These will be added once online donations and verified progress updates are live, so they only ever show real records."
               className="py-8"

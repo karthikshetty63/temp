@@ -120,7 +120,7 @@ const NGODashboard = () => {
     setFundingId(null);
     say(
       <>
-        {message} Next, pay the school and <Link to="#funding" className="font-medium underline underline-offset-2">record the payment</Link>.
+        {message} Next, <Link to="#funding" className="font-medium underline underline-offset-2">make the payment</Link> online or directly to the school.
       </>
     );
   };
@@ -228,6 +228,11 @@ const NGODashboard = () => {
           lastRejection={lastPayment?.status === "REJECTED" ? lastPayment.rejectionReason : null}
           onClose={() => setPayingId(null)}
           onSubmitted={handlePaid}
+          onChanged={() => {
+            needsList.refresh();
+            commitments.refresh();
+            paymentList.refresh();
+          }}
         />
       )}
       {viewingProof && (

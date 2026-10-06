@@ -54,7 +54,7 @@ const NeedsView = ({ needs, loading, error, homeState, notice, onView, onFund })
                 type="checkbox"
                 checked={homeStateOnly}
                 onChange={(e) => setHomeStateOnly(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                className="h-4 w-4 rounded border-slate-300 text-primary-600"
               />
               Only in {homeState}
             </label>

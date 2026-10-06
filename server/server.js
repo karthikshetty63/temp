@@ -24,7 +24,12 @@ const startServer = async () => {
             corsOrigin: process.env.FRONTEND_ORIGIN || "http://localhost:5173",
             trustProxy: process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY : undefined,
         });
-        app.listen(PORT, () => {
+        // Express 5 passes a start-up error (e.g. the port is already in use) to this callback.
+        app.listen(PORT, (error) => {
+            if (error) {
+                console.error("Server failed to start:", error.code === "EADDRINUSE" ? `port ${PORT} is already in use` : error.message);
+                process.exit(1);
+            }
             console.log(`Server running on http://localhost:${PORT}`);
         });
 

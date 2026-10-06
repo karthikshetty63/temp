@@ -14,6 +14,15 @@ export const SCHOOL_PAYMENT_STATUS = {
   REJECTED: { label: "Rejected", tone: "danger" },
 };
 
+/** An online (Razorpay) payment: it counts as soon as Razorpay confirms it, so there is nothing to check. */
+const ONLINE_PAYMENT_STATUS = {
+  ACCEPTED: { label: "Paid online", tone: "success" },
+  REFUND_DUE: { label: "Refund due", tone: "warning" },
+};
+
+/** The badge for a payment, from one of the maps above (online payments read the same to both sides). */
+export const paymentBadge = (pay, map) => (pay.channel === "ONLINE" && ONLINE_PAYMENT_STATUS[pay.status]) || map[pay.status];
+
 /** One committed part, as the school sees it. */
 export const SCHOOL_PART_STATUS = {
   AWAITING_PAYMENT: { label: "Awaiting payment", tone: "neutral" },

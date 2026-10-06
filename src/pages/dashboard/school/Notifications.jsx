@@ -55,7 +55,7 @@ const Notifications = () => {
                   const decision = DECISIONS[p.reviewStatus];
                   return (
                     <li key={p.id}>
-                      <Link to={`/dashboard/school/progress?project=${p.id}`} className="flex gap-3 px-5 py-4 hover:bg-slate-50 transition-colors">
+                      <Link to={`/dashboard/school/progress?project=${p.id}`} className="flex gap-3 px-5 py-4 hover:bg-surface-muted transition-colors">
                         <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${decision.dot}`} aria-hidden="true" />
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">

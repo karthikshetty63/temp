@@ -105,7 +105,7 @@ const DonorRegister = () => {
         <FileUploadField key={field} field={field} rule={rule} file={files[field]} onChange={(file) => setFile(field, file)} error={errors[field]} />
       ))}
       <Alert tone="neutral">
-        Your PAN card is used to verify your account and for 80G tax-exemption receipts. It is stored privately: only you and
+        Your PAN card is used to verify your account. It is stored privately: only you and
         VIDYADAAN administrators (for verification) can view it.
       </Alert>
     </div>,
@@ -119,7 +119,7 @@ const DonorRegister = () => {
         ]}
       />
       <AgreeCheckbox checked={form.agree} onChange={(v) => set("agree", v)} error={errors.agree}>
-        I agree to VIDYADAAN's <span className="font-medium text-slate-900">Terms of Service</span> and <span className="font-medium text-slate-900">Privacy Policy</span>.
+        I agree to VIDYADAAN's <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-900 underline underline-offset-2 hover:text-primary-700">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-900 underline underline-offset-2 hover:text-primary-700">Privacy Policy</a>.
       </AgreeCheckbox>
     </div>,
   ];

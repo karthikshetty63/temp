@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import VidyadaanLogo from "../ui/VidyadaanLogo";
 import { CONTACT } from "../../constants/contact";
+import { LEGAL_LINKS } from "../../constants/legal";
 
 // Only links that lead somewhere real.
 const COLUMNS = [
@@ -59,8 +60,14 @@ const Footer = () => (
 
     <div className="border-t border-zinc-200">
       <div className="mx-auto flex max-w-[1200px] flex-col gap-2 px-5 py-6 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
-        <p>© {new Date().getFullYear()} VIDYADAAN</p>
-        <p>Made for government schools in India</p>
+        <p>© {new Date().getFullYear()} VIDYADAAN · Made for government schools in India</p>
+        <nav aria-label="Policies">
+          <ul className="flex flex-wrap gap-x-5 gap-y-2">
+            {LEGAL_LINKS.map(({ label, to }) => (
+              <li key={to}><Link to={to} className="transition-colors hover:text-zinc-900">{label}</Link></li>
+            ))}
+          </ul>
+        </nav>
       </div>
     </div>
   </footer>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { LuFolderKanban, LuImage, LuImagePlus, LuTrash2 } from "react-icons/lu";
+import { LuFolderKanban, LuImage, LuImagePlus, LuImages, LuTrash2 } from "react-icons/lu";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import AddPhotoModal from "../../../components/dashboard/school/AddPhotoModal";
 import Alert from "../../../components/ui/Alert";
@@ -85,7 +85,7 @@ const Gallery = () => {
             <Card>
               {hasProjects ? (
                 <EmptyState
-                  icon={LuImage}
+                  icon={LuImages}
                   title="No photos yet"
                   description="Add before, in-progress and completion photos of your projects. They show how the work is going."
                   action={addButton}
@@ -107,12 +107,12 @@ const Gallery = () => {
 
               {displayed.length === 0 ? (
                 <Card>
-                  <EmptyState icon={LuImage} title="No photos at this stage" />
+                  <EmptyState icon={LuImages} title="No photos at this stage" />
                 </Card>
               ) : (
                 <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {displayed.map((photo) => (
-                    <li key={photo.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
+                    <li key={photo.id} className="bg-surface rounded-2xl border border-surface-line shadow-card overflow-hidden flex flex-col">
                       <button type="button" onClick={() => setViewing(photo)} className="relative block w-full h-48 bg-slate-100" aria-label={`View photo: ${describe(photo)}`}>
                         <ProtectedImage fileId={photo.file?.id} alt="" className="w-full h-full object-cover" fallback={<PhotoFallback />} />
                         <span className="absolute top-3 left-3 bg-black/60 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">{photo.stage}</span>
@@ -120,7 +120,7 @@ const Gallery = () => {
                       <div className="p-4 flex-1 flex flex-col gap-2">
                         <div className="min-w-0">
                           {photo.project && (
-                            <Link to={`/dashboard/school/progress?project=${photo.project.id}`} className="block truncate text-xs font-semibold text-blue-700 hover:underline">
+                            <Link to={`/dashboard/school/progress?project=${photo.project.id}`} className="block truncate text-xs font-semibold text-primary-700 hover:underline">
                               {photo.project.title}
                             </Link>
                           )}

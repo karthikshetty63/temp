@@ -10,13 +10,13 @@ const ApprovedNeedCard = ({ need, onView, onFund }) => {
   const free = freeParts(need);
   const mine = myParts(need);
   return (
-    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+    <article className="flex flex-col rounded-2xl border border-surface-line bg-surface p-5 shadow-card transition-[border-color,box-shadow] duration-200 hover:border-primary-200 hover:shadow-card-hover">
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge>{need.category}</Badge>
         <StatusBadge status={need.priority} />
         {need.status !== "Open" && <StatusBadge status={need.status} />}
       </div>
-      <h3 className="mt-3 text-sm font-semibold text-slate-900">{need.title}</h3>
+      <h3 className="mt-3 text-base font-bold leading-snug tracking-tight text-slate-900">{need.title}</h3>
       <p className="mt-1 flex items-start gap-1.5 text-xs text-slate-500">
         <LuMapPin className="mt-px w-3.5 h-3.5 shrink-0" aria-hidden="true" />
         <span>{need.school.name}{place && ` · ${place}`}</span>
@@ -31,7 +31,7 @@ const ApprovedNeedCard = ({ need, onView, onFund }) => {
         </p>
         <FundingPartsBar segments={ngoSegments(need)} labels={NGO_PART_LABELS} />
         {mine.length > 0 && (
-          <p className="mt-2 text-xs font-medium text-blue-700">
+          <p className="mt-2 text-xs font-medium text-primary-700">
             You&rsquo;ve committed {formatINR(sumAmounts(mine))} ({myShare(need)})
           </p>
         )}

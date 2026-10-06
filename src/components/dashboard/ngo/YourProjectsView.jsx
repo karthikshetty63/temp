@@ -37,7 +37,7 @@ const YourProjectsView = ({ projects, loading, error, notice, onView }) => (
                 <button
                   type="button"
                   onClick={() => onView(p)}
-                  className="flex w-full flex-col gap-3 px-5 py-4 text-left transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+                  className="flex w-full flex-col gap-3 px-5 py-4 text-left transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-surface-muted md:flex-row md:items-center md:justify-between"
                 >
                   <span className="min-w-0">
                     <span className="block text-sm font-medium text-slate-900">{p.title}</span>

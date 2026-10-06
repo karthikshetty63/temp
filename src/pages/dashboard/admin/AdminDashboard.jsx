@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { LuExternalLink, LuHandHeart, LuHeartHandshake, LuSchool } from "react-icons/lu";
+import PaymentQrReviewSection from "../../../components/admin/PaymentQrReviewSection";
 import ProjectReviewSection from "../../../components/admin/ProjectReviewSection";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import Alert from "../../../components/ui/Alert";
@@ -347,13 +348,18 @@ const SECTIONS = {
     subtitle: "Approve schools' projects",
     description: "A school's project becomes visible to NGOs and donors only after it is approved.",
   },
+  qrs: {
+    title: "Payment QR reviews",
+    subtitle: "Check schools' UPI QRs",
+    description: "A school's UPI QR with a UPI ID other than the one verified at registration is shown to NGOs only after it is approved.",
+  },
 };
 
 const AdminDashboard = () => {
   const { user } = useAuth();
   // The section lives in the address (?tab=projects) so a refresh or a shared link keeps it.
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get("tab") === "projects" ? "projects" : "accounts";
+  const tab = Object.hasOwn(SECTIONS, searchParams.get("tab") ?? "") ? searchParams.get("tab") : "accounts";
   const section = SECTIONS[tab];
 
   return (
@@ -367,12 +373,14 @@ const AdminDashboard = () => {
               <SegmentedControl
                 label="Admin section"
                 value={tab}
-                onChange={(v) => setSearchParams(v === "projects" ? { tab: "projects" } : {}, { replace: true })}
-                options={[{ value: "accounts", label: "Accounts" }, { value: "projects", label: "Projects" }]}
+                onChange={(v) => setSearchParams(v === "accounts" ? {} : { tab: v }, { replace: true })}
+                options={[{ value: "accounts", label: "Accounts" }, { value: "projects", label: "Projects" }, { value: "qrs", label: "Payment QRs" }]}
               />
             }
           />
-          {tab === "projects" ? <ProjectReviewSection /> : <AccountApprovals />}
+          {tab === "projects" && <ProjectReviewSection />}
+          {tab === "qrs" && <PaymentQrReviewSection />}
+          {tab === "accounts" && <AccountApprovals />}
         </div>
       </main>
     </DashboardLayout>

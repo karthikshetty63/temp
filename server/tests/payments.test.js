@@ -78,7 +78,7 @@ describe("an NGO pays the school and records it with proof", () => {
         const { ngo, project, school } = await committedNeed([1]);
         const res = await ngo.c.get(`/api/projects/${project.id}/payment-details`);
         assert.equal(res.status, 200);
-        assert.deepEqual(res.body.payee, { name: school.data.schoolName, bankAccount: "123456789012", ifsc: "SBIN0001234", upi: "school@sbi" });
+        assert.deepEqual(res.body.payee, { name: school.data.schoolName, bankAccount: "123456789012", ifsc: "SBIN0001234", upi: "school@sbi", qr: null });
 
         const stranger = await signedIn(ngoData, "ngo");
         assert.equal((await stranger.c.get(`/api/projects/${project.id}/payment-details`)).status, 404, "an NGO that hasn't committed");

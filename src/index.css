@@ -4,7 +4,9 @@
  * VIDYADAAN design tokens
  * ───────────────────────
  * Colour roles
- *   blue-600 / 700   primary interactive colour (buttons, links, active nav, focus)
+ *   primary-600 / 700 primary interactive colour (buttons, links, active nav, focus).
+ *                    Blue on public and sign-in pages; indigo inside the dashboards
+ *                    (see .dashboard-theme below).
  *   brand-navy       brand ink — logo, dark panels, footer
  *   brand-orange     logo accent only (never used for actions or status)
  *   emerald          success / funded / verified
@@ -14,10 +16,12 @@
  *
  * Radius scale
  *   rounded-md (6px)       tiny elements (checkbox, tags)
- *   rounded-lg (8px)       small controls: nav items, icon buttons, tabs
+ *   rounded-lg (8px)       small controls: icon buttons, tabs
  *   rounded-control (10px) buttons, inputs, selects
+ *   rounded-xl (12px)      dashboard nav items, icon tiles
  *   rounded-2xl (16px)     cards
  *   rounded-panel (20px)   large containers: modals, auth/registration panels
+ *   rounded-3xl (24px)     the dashboard welcome banner
  *   rounded-full           status badges and avatars only
  *
  * Shared components in src/components/ui/ use these tokens — prefer them over
@@ -34,8 +38,31 @@
   --color-brand-ink: #070F1E;
   --color-brand-orange: #FF6B00;
 
+  /* Same values as Tailwind's blue, so pages outside the dashboards look exactly as before. */
+  --color-primary-50: oklch(97% 0.014 254.604);
+  --color-primary-100: oklch(93.2% 0.032 255.585);
+  --color-primary-200: oklch(88.2% 0.059 254.128);
+  --color-primary-300: oklch(80.9% 0.105 251.813);
+  --color-primary-400: oklch(70.7% 0.165 254.624);
+  --color-primary-500: oklch(62.3% 0.214 259.815);
+  --color-primary-600: oklch(54.6% 0.245 262.881);
+  --color-primary-700: oklch(48.8% 0.243 264.376);
+  --color-primary-800: oklch(42.4% 0.199 265.638);
+  --color-primary-900: oklch(37.9% 0.146 265.522);
+
+  /* Box surfaces: Card, StatCard and the need / project cards. These are the white and slate
+     values used before; the donor, NGO and school portals swap them for sky blue (.dashboard-sky). */
+  --color-surface: #ffffff;                                 /* box fill */
+  --color-surface-muted: oklch(98.4% 0.003 247.858);        /* slate-50: table headers, hovered rows, inner panels */
+  --color-surface-line: oklch(92.9% 0.013 255.508 / 0.8);   /* slate-200 at 80%: box border */
+  --color-surface-divider: oklch(96.8% 0.007 247.896);      /* slate-100: lines inside a box */
+
   --radius-control: 0.625rem;
   --radius-panel: 1.25rem;
+
+  /* Cards sit on a tinted background, so they need only a hairline of depth. */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.03);
+  --shadow-card-hover: 0 2px 4px -1px rgb(15 23 42 / 0.05), 0 12px 24px -10px rgb(79 70 229 / 0.18);
 
   /* A dashboard view (e.g. an NGO portal section) settles in when you switch to it. */
   --animate-view-enter: view-enter 180ms ease-out;
@@ -76,9 +103,62 @@
 
   /* Visible keyboard focus everywhere (mouse clicks don't show it). */
   :focus-visible {
-    outline: 2px solid var(--color-blue-600);
+    outline: 2px solid var(--color-primary-600);
     outline-offset: 2px;
   }
+}
+
+/*
+ * Dashboard theme (set on DashboardLayout, so it covers every portal page and its dialogs)
+ * ───────────────
+ * Indigo brand colour, Plus Jakarta Sans for all text, and a very soft lavender → blue →
+ * pink → green wash behind the cards. The wash never moves; only the content scrolls.
+ */
+.dashboard-theme {
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  font-family: var(--font-heading);
+  background-color: #f7f6fe;
+  background-image: linear-gradient(135deg, #f5f3ff 0%, #eff6ff 45%, #fdf2f8 75%, #f0fdf4 100%);
+}
+.dashboard-theme ::-webkit-scrollbar-track { background: transparent; }
+
+/* Donor, NGO and school portals (not admin): every box is filled with the lightest sky blue,
+   to match the welcome banner. DashboardLayout adds this class for those three roles. */
+.dashboard-sky {
+  --color-surface: #f0f9ff;                  /* sky-50 */
+  --color-surface-muted: #e0f2fe;            /* sky-100 */
+  --color-surface-line: rgb(186 230 253 / 0.7); /* sky-200 at 70% */
+  --color-surface-divider: #e0f2fe;          /* sky-100 */
+  /* Grey helper text (slate-500) a touch darker, so it keeps 4.5:1 contrast on sky blue
+     (Tailwind's value is 55.4% lightness and reads at only 4.47:1 here). */
+  --color-slate-500: oklch(52% 0.046 257.417);
+}
+
+/* Dialogs (Modal) in those portals: the welcome banner's sky gradient on the header and a sky
+   footer, so a dialog looks like part of the dashboard. The form area stays white. */
+.dashboard-sky .dialog-head {
+  background-image: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-bottom-color: var(--color-surface-line);
+}
+.dashboard-sky .dialog-foot {
+  background-color: var(--color-surface);
+  border-top-color: var(--color-surface-line);
+}
+
+/* The welcome banner on a portal's home page (DashboardHero): the lightest sky blue, with dark text on it. */
+.dashboard-hero {
+  background-color: #f0f9ff;
+  background-image: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
 }
 
 /* Handwritten font */

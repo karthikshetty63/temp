@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { LuReceipt } from "react-icons/lu";
+import { LuHandCoins } from "react-icons/lu";
 import DashboardLayout from "../../../components/dashboard/DashboardLayout";
 import ProofModal from "../../../components/dashboard/ProofModal";
 import PaymentsToCheck from "../../../components/dashboard/school/PaymentsToCheck";
@@ -16,7 +16,7 @@ import useMyProjects from "../../../hooks/useMyProjects";
 import useSchoolPayments from "../../../hooks/useSchoolPayments";
 import { formatDate, formatINR, partsLabel } from "../../../utils/format";
 import { getFundingPercentage } from "../../../utils/funding";
-import { SCHOOL_PAYMENT_STATUS } from "../../../utils/payments";
+import { SCHOOL_PAYMENT_STATUS, paymentBadge } from "../../../utils/payments";
 
 const th = "whitespace-nowrap px-5 py-2.5 text-xs font-medium text-slate-500";
 
@@ -66,7 +66,7 @@ const DonationHistory = () => {
             {paymentList.loading && <p className="px-5 py-4 text-sm text-slate-500" role="status">Loading payments…</p>}
             {!paymentList.loading && !paymentList.error && decided.length === 0 && (
               <EmptyState
-                icon={LuReceipt}
+                icon={LuHandCoins}
                 title={toCheck.length ? "No payments decided yet" : "No payments yet"}
                 description="When an NGO pays for one of your approved projects and records it with proof, you check it here."
                 className="py-8"
@@ -76,7 +76,7 @@ const DonationHistory = () => {
               <>
                 <ul className="divide-y divide-slate-200 md:hidden">
                   {decided.map((pay) => {
-                    const status = SCHOOL_PAYMENT_STATUS[pay.status];
+                    const status = paymentBadge(pay, SCHOOL_PAYMENT_STATUS);
                     return (
                       <li key={pay.id} className="px-5 py-4">
                         <div className="flex items-start justify-between gap-3">
@@ -88,7 +88,7 @@ const DonationHistory = () => {
                         </div>
                         <p className="mt-1 text-xs text-slate-500">{pay.method} · Ref. {pay.reference}</p>
                         {pay.status === "REJECTED" && <p className="mt-1 text-xs text-red-700">{pay.rejectionReason}</p>}
-                        <Button variant="secondary" size="sm" className="mt-3" onClick={() => setViewing(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>
+                        {pay.proof && <Button variant="secondary" size="sm" className="mt-3" onClick={() => setViewing(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>}
                       </li>
                     );
                   })}
@@ -96,14 +96,14 @@ const DonationHistory = () => {
                 <div className="relative hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                      <tr className="border-b border-slate-200 bg-surface-muted text-left">
                         {["Paid on", "From", "Project", "Amount", "Method & reference", "Status"].map((h) => <th key={h} scope="col" className={th}>{h}</th>)}
                         <th scope="col" className="px-5 py-2.5"><span className="sr-only">Proof</span></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {decided.map((pay) => {
-                        const status = SCHOOL_PAYMENT_STATUS[pay.status];
+                        const status = paymentBadge(pay, SCHOOL_PAYMENT_STATUS);
                         return (
                           <tr key={pay.id}>
                             <td className="whitespace-nowrap px-5 py-3 text-slate-600">{formatDate(pay.paidOn)}</td>
@@ -123,7 +123,7 @@ const DonationHistory = () => {
                               {pay.status === "REJECTED" && <p className="mt-1 max-w-xs text-xs text-red-700">{pay.rejectionReason}</p>}
                             </td>
                             <td className="whitespace-nowrap px-5 py-3 text-right">
-                              <Button variant="ghost" size="sm" onClick={() => setViewing(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>
+                              {pay.proof && <Button variant="ghost" size="sm" onClick={() => setViewing(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>}
                             </td>
                           </tr>
                         );
@@ -143,7 +143,7 @@ const DonationHistory = () => {
               !error && (
                 <p className="px-5 py-4 text-sm text-slate-600">
                   None of your projects has been approved yet.{" "}
-                  <Link to="/dashboard/school/projects" className="font-medium text-blue-700 hover:underline">See your projects</Link>
+                  <Link to="/dashboard/school/projects" className="font-medium text-primary-700 hover:underline">See your projects</Link>
                 </p>
               )
             ) : (

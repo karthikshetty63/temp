@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LuCheck } from "react-icons/lu";
+import { LuArrowRight, LuCheck } from "react-icons/lu";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import VidyadaanLogo from "../ui/VidyadaanLogo";
@@ -53,7 +53,7 @@ const AccountChooser = ({ eyebrow, title, description, options, legend, headerLi
       {headerLink.prompt}{" "}
       <Link to={headerLink.href} className={LINK}>
         {headerLink.label}
-        <span aria-hidden="true" className={LINK_ARROW}>→</span>
+        <LuArrowRight aria-hidden="true" className={`${LINK_ARROW} h-3.5 w-3.5 align-[-2px]`} />
       </Link>
     </>
   );

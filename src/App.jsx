@@ -3,11 +3,10 @@ import { AuthProvider } from "./context/AuthContext";
 import GuestRoute from "./components/auth/GuestRoute";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Home from "./pages/Home";
-
-import CommunitySupport from "./pages/CommunitySupport";
-import ProjectDetails from "./pages/ProjectDetails";
-
-import DonorImpactPage from "./pages/DonorImpactPage";
+import Contact from "./pages/legal/Contact";
+import Privacy from "./pages/legal/Privacy";
+import RefundPolicy from "./pages/legal/RefundPolicy";
+import Terms from "./pages/legal/Terms";
 import RoleSelector from "./pages/auth/RoleSelector";
 import SchoolLogin from "./pages/auth/SchoolLogin";
 import NGOLogin from "./pages/auth/NGOLogin";
@@ -39,13 +38,12 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public Landing & Transparency Pages */}
+          {/* Public landing page and policies (open to everyone, signed in or not) */}
           <Route path="/" element={<Home />} />
-
-          <Route path="/community-support" element={<CommunitySupport />} />
-          <Route path="/project/:id" element={<ProjectDetails />} />
-
-          <Route path="/impact" element={<DonorImpactPage />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
+          <Route path="/contact" element={<Contact />} />
 
           {/* Sign-in and registration: anyone already signed in goes straight to their dashboard */}
           <Route element={<GuestRoute />}>

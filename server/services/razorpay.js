@@ -74,3 +74,20 @@ export const isValidPaymentSignature = ({ orderId, paymentId, signature }) => {
     // Constant-time comparison, so the check takes as long however much of a guess is right.
     return timingSafeEqual(expected, Buffer.from(signature, "hex"));
 };
+
+const PAYMENT_ID = /^pay_[A-Za-z0-9]+$/;
+
+/**
+ * The three values Razorpay Checkout hands the browser after a payment, from a request body — or null
+ * when any is missing or has the wrong shape. (Shape only: isValidPaymentSignature does the real check.)
+ * @returns {{ orderId: string, paymentId: string, signature: string } | null}
+ */
+export const readCheckoutResult = (body) => {
+    const input = body && typeof body === "object" ? body : {};
+    const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = input;
+    const complete =
+        typeof orderId === "string" && ORDER_ID.test(orderId) &&
+        typeof paymentId === "string" && PAYMENT_ID.test(paymentId) &&
+        typeof signature === "string" && SIGNATURE.test(signature);
+    return complete ? { orderId, paymentId, signature } : null;
+};

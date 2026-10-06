@@ -7,7 +7,7 @@ import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import { apiNotFound, errorHandler } from "./middleware/errorHandler.js";
 import adminRoutes from "./routes/adminRoutes.js";
-import approvedProjectRoutes from "./routes/approvedProjectRoutes.js";
+import createApprovedProjectRouter from "./routes/approvedProjectRoutes.js";
 import createAuthRouter from "./routes/authRoutes.js";
 import createDonationRouter from "./routes/donationRoutes.js";
 import fileRoutes from "./routes/fileRoutes.js";
@@ -27,6 +27,8 @@ const DEFAULT_RATE_LIMITS = {
     resetPassword: { windowMs: 15 * 60 * 1000, limit: 10 },
     // Each new donation is a request to Razorpay: 20 per 15 minutes per donor.
     donationOrders: { windowMs: 15 * 60 * 1000, limit: 20 },
+    // The same for an NGO paying its parts online: 20 per 15 minutes per NGO.
+    ngoOnlineOrders: { windowMs: 15 * 60 * 1000, limit: 20 },
 };
 
 const makeLimiter = (config, message, options = {}) =>
@@ -44,7 +46,7 @@ const makeLimiter = (config, message, options = {}) =>
 /**
  * @param {object} [options]
  * @param {string} [options.corsOrigin] the React app's origin (cookies are only accepted from it)
- * @param {false|{login?:object, register?:object, forgotPassword?:object, resetPassword?:object, donationOrders?:object}} [options.rateLimits] false disables limits (tests)
+ * @param {false|{login?:object, register?:object, forgotPassword?:object, resetPassword?:object, donationOrders?:object, ngoOnlineOrders?:object}} [options.rateLimits] false disables limits (tests)
  * @param {string|number|boolean} [options.trustProxy] set when running behind a reverse proxy
  */
 export const createApp = ({ corsOrigin = "http://localhost:5173", rateLimits = DEFAULT_RATE_LIMITS, trustProxy } = {}) => {
@@ -77,7 +79,12 @@ export const createApp = ({ corsOrigin = "http://localhost:5173", rateLimits = D
     app.use("/api/school/photos", schoolPhotoRoutes);
     app.use("/api/school/commitments", schoolCommitmentRoutes);
     app.use("/api/school/payments", schoolPaymentRoutes);
-    app.use("/api/projects", approvedProjectRoutes);
+    app.use("/api/projects", createApprovedProjectRouter({
+        // Counted per signed-in NGO (the router checks who it is before this runs).
+        onlineOrderLimiter: makeLimiter(limits.ngoOnlineOrders, "Too many payment attempts. Please wait a few minutes and try again.", {
+            keyGenerator: (req) => req.user._id.toString(),
+        }),
+    }));
     app.use("/api/ngo", ngoRoutes);
     app.use("/api/donations", createDonationRouter({
         // Counted per signed-in donor (the router checks who it is before this runs).

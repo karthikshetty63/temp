@@ -107,7 +107,7 @@ const SchoolProfileModal = ({ open, onClose, profile, onSaved }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {SCHOOL_FACILITY_FIELDS.map((field) => (
               <label key={field} className="flex items-center gap-3 h-10 px-3 rounded-lg border border-slate-200 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
-                <input type="checkbox" checked={form[field]} onChange={set(field)} className="w-4 h-4 rounded border-slate-300 accent-blue-600" />
+                <input type="checkbox" checked={form[field]} onChange={set(field)} className="w-4 h-4 rounded border-slate-300 accent-primary-600" />
                 {FIELDS[field].label}
               </label>
             ))}

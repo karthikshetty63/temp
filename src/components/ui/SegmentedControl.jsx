@@ -3,7 +3,7 @@
  * options: [{ value, label, count? }]
  */
 const SegmentedControl = ({ label, options, value, onChange, className = "" }) => (
-  <div role="group" aria-label={label} className={`inline-flex max-w-full overflow-x-auto rounded-control border border-slate-300 bg-white p-0.5 shadow-xs ${className}`}>
+  <div role="group" aria-label={label} className={`inline-flex max-w-full overflow-x-auto rounded-control border border-slate-200/80 bg-slate-100/80 p-0.5 ${className}`}>
     {options.map((option) => {
       const selected = option.value === value;
       return (
@@ -12,13 +12,13 @@ const SegmentedControl = ({ label, options, value, onChange, className = "" }) =
           type="button"
           aria-pressed={selected}
           onClick={() => onChange(option.value)}
-          className={`h-8 px-3 rounded-lg text-sm whitespace-nowrap transition-colors ${
-            selected ? "bg-slate-900 text-white font-medium" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+          className={`h-8 px-3 rounded-lg text-sm font-medium whitespace-nowrap transition-colors duration-150 ${
+            selected ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-200" : "text-slate-600 hover:text-slate-900"
           }`}
         >
           {option.label}
           {option.count !== undefined && (
-            <span className={`ml-1.5 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>{option.count}</span>
+            <span className={`ml-1.5 text-xs ${selected ? "text-primary-600" : "text-slate-500"}`}>{option.count}</span>
           )}
         </button>
       );

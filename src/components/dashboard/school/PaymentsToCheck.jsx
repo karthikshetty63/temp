@@ -36,12 +36,12 @@ const PaymentsToCheck = ({ payments, showProject = true, onReviewed }) => {
               {pay.note && <p className="mt-1 text-xs italic text-slate-600">&ldquo;{pay.note}&rdquo;</p>}
               <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
                 {pay.ngo.email && (
-                  <a href={`mailto:${pay.ngo.email}`} className="inline-flex items-center gap-1 text-blue-700 hover:underline">
+                  <a href={`mailto:${pay.ngo.email}`} className="inline-flex items-center gap-1 text-primary-700 hover:underline">
                     <LuMail className="h-3.5 w-3.5" aria-hidden="true" /> {pay.ngo.email}
                   </a>
                 )}
                 {pay.ngo.phone && (
-                  <a href={`tel:${pay.ngo.phone}`} className="inline-flex items-center gap-1 text-blue-700 hover:underline">
+                  <a href={`tel:${pay.ngo.phone}`} className="inline-flex items-center gap-1 text-primary-700 hover:underline">
                     <LuPhone className="h-3.5 w-3.5" aria-hidden="true" /> {formatPhone(pay.ngo.phone)}
                   </a>
                 )}

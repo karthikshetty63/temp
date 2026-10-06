@@ -79,12 +79,12 @@ const ProjectFundingCard = ({ project, commitments, payments, loading, error, on
                   </p>
                   <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
                     {c.ngo.email && (
-                      <a href={`mailto:${c.ngo.email}`} className="inline-flex items-center gap-1 text-blue-700 hover:underline">
+                      <a href={`mailto:${c.ngo.email}`} className="inline-flex items-center gap-1 text-primary-700 hover:underline">
                         <LuMail className="h-3.5 w-3.5" aria-hidden="true" /> {c.ngo.email}
                       </a>
                     )}
                     {c.ngo.phone && (
-                      <a href={`tel:${c.ngo.phone}`} className="inline-flex items-center gap-1 text-blue-700 hover:underline">
+                      <a href={`tel:${c.ngo.phone}`} className="inline-flex items-center gap-1 text-primary-700 hover:underline">
                         <LuPhone className="h-3.5 w-3.5" aria-hidden="true" /> {formatPhone(c.ngo.phone)}
                       </a>
                     )}

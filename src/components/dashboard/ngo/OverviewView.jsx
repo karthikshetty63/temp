@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
-import { LuCircleCheck, LuClipboardList, LuFolderKanban, LuHandCoins, LuHeartHandshake, LuUsers, LuWallet } from "react-icons/lu";
+import { LuCircleCheck, LuClipboardList, LuFolderKanban, LuGraduationCap, LuHandCoins, LuHeartHandshake, LuIndianRupee, LuMapPin } from "react-icons/lu";
+import DashboardHero, { HeroChip, HeroTile } from "../DashboardHero";
 import Alert from "../../ui/Alert";
 import Badge from "../../ui/Badge";
 import Card, { CardHeader } from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
-import PageHeader from "../../ui/PageHeader";
 import StatCard from "../../ui/StatCard";
 import { buttonClasses } from "../../ui/classes";
 import { formatINR, freeParts, fundingStatus, myParts, schoolPlace, sumAmounts } from "./format";
@@ -12,7 +12,7 @@ import { formatINR, freeParts, fundingStatus, myParts, schoolPlace, sumAmounts }
 const PREVIEW_ROWS = 4;
 
 const ViewAll = ({ to, children = "View all" }) => (
-  <Link to={to} className="text-sm font-medium text-blue-700 hover:underline">{children}</Link>
+  <Link to={to} className="text-sm font-medium text-primary-700 hover:underline">{children}</Link>
 );
 
 /**
@@ -34,48 +34,64 @@ const OverviewView = ({ profile, userName, needs, needsLoading, funded, fundedLo
       label: "Open school needs",
       value: openNeeds.length,
       icon: LuClipboardList,
+      tone: "indigo",
       hint: openNeeds.length ? `In ${openSchools.size} ${openSchools.size === 1 ? "school" : "schools"}` : undefined,
     },
     {
       label: "Still needed",
       value: formatINR(needs.reduce((sum, n) => sum + sumAmounts(freeParts(n)), 0)),
-      icon: LuWallet,
+      icon: LuIndianRupee,
+      tone: "amber",
       hint: needs.length ? `of ${formatINR(needs.reduce((sum, n) => sum + n.budget, 0))} in total` : undefined,
     },
-    { label: "You've committed", value: formatINR(myTotal), icon: LuHandCoins, hint: funded.length ? `${formatINR(myReceived)} received by schools` : undefined },
+    {
+      label: "You've committed",
+      value: formatINR(myTotal),
+      icon: LuHandCoins,
+      tone: "emerald",
+      hint: funded.length ? `${formatINR(myReceived)} paid and confirmed` : undefined,
+    },
     {
       label: "Students you support",
       value: funded.reduce((sum, n) => sum + n.studentsBenefited, 0).toLocaleString("en-IN"),
-      icon: LuUsers,
+      icon: LuGraduationCap,
+      tone: "rose",
       hint: funded.length ? `Across ${funded.length} ${funded.length === 1 ? "project" : "projects"}` : undefined,
     },
   ];
 
-  const browseNeeds = (
-    <Link to="#needs" className={buttonClasses()}>
-      <LuClipboardList className="w-4 h-4" aria-hidden="true" /> Browse school needs
-    </Link>
-  );
+  let summary = "Find approved needs in government schools, fund part or all of one, and pay the school directly.";
+  if (ready && openNeeds.length) {
+    summary = `${openNeeds.length} school ${openNeeds.length === 1 ? "need is" : "needs are"} open to funding in ${openSchools.size} ${
+      openSchools.size === 1 ? "school" : "schools"
+    }. Fund part or all of one, then pay the school directly.`;
+  }
 
   return (
     <>
-      <PageHeader
+      <DashboardHero
         leading={
-          <span className="w-14 h-14 rounded-control border border-slate-200 bg-white flex items-center justify-center shrink-0">
-            <LuHeartHandshake className="w-6 h-6 text-slate-400" aria-hidden="true" />
-          </span>
+          <HeroTile>
+            <LuHeartHandshake className="w-6 h-6 text-sky-600" aria-hidden="true" />
+          </HeroTile>
         }
+        eyebrow="NGO portal"
         title={ngoName || "Your NGO"}
+        description={summary}
         meta={
           <>
             {/* Only accounts the admin has approved can sign in, so this is always true here. */}
-            <Badge tone="success" icon={LuCircleCheck}>Verified NGO</Badge>
-            {profile?.type && <span>{profile.type}</span>}
-            {place && <span>{place}</span>}
-            {focus.length > 0 && <span>Focus: {focus.join(", ")}</span>}
+            <HeroChip icon={LuCircleCheck}>Verified NGO</HeroChip>
+            {profile?.type && <HeroChip>{profile.type}</HeroChip>}
+            {place && <HeroChip icon={LuMapPin}>{place}</HeroChip>}
+            {focus.length > 0 && <HeroChip>Focus: {focus.join(", ")}</HeroChip>}
           </>
         }
-        actions={browseNeeds}
+        actions={
+          <Link to="#needs" className={buttonClasses()}>
+            <LuClipboardList className="w-4 h-4" aria-hidden="true" /> Browse school needs
+          </Link>
+        }
       />
       {notice}
 
@@ -90,7 +106,7 @@ const OverviewView = ({ profile, userName, needs, needsLoading, funded, fundedLo
         <h2 id="overview-heading" className="sr-only">Overview</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {stats.map((card) => (
-            <StatCard key={card.label} label={card.label} value={ready ? card.value : "–"} icon={card.icon} hint={ready ? card.hint : undefined} />
+            <StatCard key={card.label} label={card.label} value={ready ? card.value : "–"} icon={card.icon} tone={card.tone} hint={ready ? card.hint : undefined} />
           ))}
         </div>
       </section>
@@ -118,7 +134,7 @@ const OverviewView = ({ profile, userName, needs, needsLoading, funded, fundedLo
                 const where = schoolPlace(n.school);
                 return (
                   <li key={n.id}>
-                    <button type="button" onClick={() => onViewNeed(n)} className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-slate-50">
+                    <button type="button" onClick={() => onViewNeed(n)} className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-surface-muted">
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-slate-900">{n.title}</span>
                         <span className="mt-0.5 block truncate text-xs text-slate-500">{n.school.name}{where && ` · ${where}`}</span>
@@ -153,7 +169,7 @@ const OverviewView = ({ profile, userName, needs, needsLoading, funded, fundedLo
                 const money = fundingStatus(mine);
                 return (
                   <li key={p.id}>
-                    <button type="button" onClick={() => onViewNeed(p)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50">
+                    <button type="button" onClick={() => onViewNeed(p)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-surface-muted">
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-slate-900">{p.title}</span>
                         <span className="mt-0.5 block text-xs tabular-nums text-slate-500">{formatINR(sumAmounts(mine))} committed</span>

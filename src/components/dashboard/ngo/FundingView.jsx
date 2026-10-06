@@ -5,7 +5,7 @@ import Card, { CardHeader } from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
 import PageHeader from "../../ui/PageHeader";
 import StatCard from "../../ui/StatCard";
-import { NGO_PAYMENT_STATUS } from "../../../utils/payments";
+import { NGO_PAYMENT_STATUS, paymentBadge } from "../../../utils/payments";
 import { formatDate, formatINR, fundingStatus, myParts, partsLabel, partsOf, sumAmounts } from "./format";
 
 const th = "whitespace-nowrap px-5 py-2.5 text-xs font-medium text-slate-500";
@@ -33,7 +33,7 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
   const sumOf = (status) => sumAmounts(all.filter((x) => x.status === status));
   const figures = [
     { label: "Committed", value: sumAmounts(all), icon: LuHandCoins },
-    { label: "Received by schools", value: sumOf("RECEIVED"), icon: LuCircleCheck },
+    { label: "Paid and confirmed", value: sumOf("RECEIVED"), icon: LuCircleCheck },
     { label: "Waiting for school", value: sumOf("PAYMENT_SUBMITTED"), icon: LuClock },
     { label: "Still to pay", value: sumOf("AWAITING_PAYMENT"), icon: LuWallet },
   ];
@@ -41,7 +41,7 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
   const actions = (r, { phone = false } = {}) =>
     r.unpaid.length > 0 && (
       <div className={`flex items-center gap-1 ${phone ? "mt-3" : "justify-end"}`}>
-        <Button size="sm" onClick={() => onRecordPayment(r.project)} aria-label={`Record payment: ${r.project.title}`}>Record payment</Button>
+        <Button size="sm" onClick={() => onRecordPayment(r.project)} aria-label={`Make payment: ${r.project.title}`}>Make payment</Button>
         <Button variant="ghost" size="sm" onClick={() => onWithdraw(r.project)} aria-label={`Withdraw commitment: ${r.project.title}`}>Withdraw</Button>
       </div>
     );
@@ -51,7 +51,7 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
     <>
       <PageHeader
         title="Funding"
-        description="Pay the school directly, then record the payment here with its proof. The school accepts it once the money reaches its account."
+        description="Pay online through Razorpay, or pay the school directly and record it here with proof for the school to accept."
       />
       {notice}
 
@@ -70,9 +70,9 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
         <>
           <section aria-label="Funding totals">
             {/* Phones: the totals two by two in one compact card. */}
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 shadow-xs sm:hidden">
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-surface-line bg-surface-divider shadow-card sm:hidden">
               {figures.map((f) => (
-                <div key={f.label} className="flex flex-col justify-between bg-white px-4 py-3">
+                <div key={f.label} className="flex flex-col justify-between bg-surface px-4 py-3">
                   <dt className="text-xs text-slate-500">{f.label}</dt>
                   <dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">{formatINR(f.value)}</dd>
                 </div>
@@ -108,7 +108,7 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
             <div className="relative hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                  <tr className="border-b border-slate-200 bg-surface-muted text-left">
                     {["School need", "Your parts", "Amount", "Status"].map((h) => <th key={h} scope="col" className={th}>{h}</th>)}
                     <th scope="col" className="px-5 py-2.5"><span className="sr-only">Actions</span></th>
                   </tr>
@@ -133,19 +133,19 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
           </Card>
 
           <Card>
-            <CardHeader title="Payment history" description="Payments you've recorded, and what the school decided." />
+            <CardHeader title="Payment history" description="Payments you've made online or recorded, and what the school decided." />
             {payments.length === 0 ? (
               <EmptyState
                 icon={LuReceipt}
                 title="No payments recorded yet"
-                description="After you pay a school, choose “Record payment” above and add the challan, receipt or transaction screenshot."
+                description="Choose “Make payment” above to pay online, or to record a payment you made to the school directly, with its proof."
                 className="py-8"
               />
             ) : (
               <>
                 <ul className="divide-y divide-slate-200 md:hidden">
                   {payments.map((pay) => {
-                    const status = NGO_PAYMENT_STATUS[pay.status];
+                    const status = paymentBadge(pay, NGO_PAYMENT_STATUS);
                     return (
                       <li key={pay.id} className="px-5 py-4">
                         <div className="flex items-start justify-between gap-3">
@@ -160,7 +160,8 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">Ref. {pay.reference}</p>
                         {pay.status === "REJECTED" && <p className="mt-1 text-xs font-medium text-red-700">{pay.rejectionReason}</p>}
-                        <Button variant="secondary" size="sm" className="mt-3" onClick={() => onViewProof(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>
+                        {pay.status === "REFUND_DUE" && <p className="mt-1 text-xs font-medium text-amber-800">VIDYADAAN will refund this payment. Email support with the payment ID.</p>}
+                        {pay.proof && <Button variant="secondary" size="sm" className="mt-3" onClick={() => onViewProof(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>}
                       </li>
                     );
                   })}
@@ -168,14 +169,14 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
                 <div className="relative hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                      <tr className="border-b border-slate-200 bg-surface-muted text-left">
                         {["Paid on", "School need", "Parts", "Amount", "Method & reference", "Status"].map((h) => <th key={h} scope="col" className={th}>{h}</th>)}
                         <th scope="col" className="px-5 py-2.5"><span className="sr-only">Proof</span></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {payments.map((pay) => {
-                        const status = NGO_PAYMENT_STATUS[pay.status];
+                        const status = paymentBadge(pay, NGO_PAYMENT_STATUS);
                         return (
                           <tr key={pay.id}>
                             <td className="whitespace-nowrap px-5 py-3 text-slate-600">{formatDate(pay.paidOn)}</td>
@@ -193,9 +194,10 @@ const FundingView = ({ projects, payments, loading, error, notice, onRecordPayme
                               <Badge tone={status.tone}>{status.label}</Badge>
                               {pay.status === "ACCEPTED" && pay.reviewedAt && <p className="mt-1 text-xs text-slate-500">on {formatDate(pay.reviewedAt)}</p>}
                               {pay.status === "REJECTED" && <p className="mt-1 max-w-xs text-xs text-red-700">{pay.rejectionReason}</p>}
+                              {pay.status === "REFUND_DUE" && <p className="mt-1 max-w-xs text-xs text-amber-800">VIDYADAAN will refund this payment. Email support with the payment ID.</p>}
                             </td>
                             <td className="whitespace-nowrap px-5 py-3 text-right">
-                              <Button variant="ghost" size="sm" onClick={() => onViewProof(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>
+                              {pay.proof && <Button variant="ghost" size="sm" onClick={() => onViewProof(pay)} aria-label={`View proof: ${pay.reference}`}>View proof</Button>}
                             </td>
                           </tr>
                         );

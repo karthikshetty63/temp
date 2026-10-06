@@ -127,7 +127,7 @@ const ManageProjects = () => {
                       <Link
                         key={proj.id}
                         to={`/dashboard/school/progress?project=${proj.id}`}
-                        className="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-xs p-5 transition-colors hover:border-slate-300"
+                        className="flex flex-col bg-surface border border-surface-line rounded-2xl shadow-card p-5 transition-[border-color,box-shadow] duration-200 hover:border-slate-300/80 hover:shadow-card-hover"
                       >
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge>{proj.category}</Badge>
